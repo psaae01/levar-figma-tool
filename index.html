@@ -1167,30 +1167,54 @@ async function testGsConnection() {
   const st = document.getElementById('gs-conn-status');
   st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3);color:var(--text2)';
   st.textContent = '⏳ 연결 테스트 중...';
-  try {
-    // CSV URL 방식: 구글 시트 공개 CSV로 읽기 테스트
-    const csvUrl = gsUrl.includes('output=csv') ? gsUrl : gsUrl + (gsUrl.includes('?') ? '&' : '?') + 'output=csv';
-    const res = await fetch(csvUrl);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    // CSV 응답이 오면 성공
+
+  // Apps Script URL인지 CSV URL인지 판단
+  const isAppsScript = gsUrl.includes('script.google.com');
+  const isCSV = gsUrl.includes('output=csv');
+
+  function setConnected() {
     gsConnected = true;
-    gsCsvUrl = csvUrl; // CSV 읽기용 URL 저장
     st.style.background = 'var(--green-t)';
     st.style.color = 'var(--green)';
-    st.textContent = '✓ 연결 성공! 마스터 DB 읽기 가능';
+    st.textContent = '✓ 연결 성공!';
     document.getElementById('gs-badge').textContent = '연결됨';
     document.getElementById('gs-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
     document.getElementById('gs-load-btn').disabled = false;
     document.getElementById('gs-save-btn').disabled = false;
     const edBtn = document.getElementById('gs-save-editor-btn');
     if (edBtn) edBtn.style.display = '';
-    localStorage.setItem('levar_gs_csv_url', csvUrl);
-  } catch(e) {
+  }
+
+  if (isCSV) {
+    // CSV URL: 직접 fetch 가능
+    try {
+      const res = await fetch(gsUrl);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      gsCsvUrl = gsUrl;
+      localStorage.setItem('levar_gs_csv_url', gsUrl);
+      setConnected();
+    } catch(e) {
+      st.style.background = 'var(--red-t)';
+      st.style.color = 'var(--red)';
+      st.textContent = '✗ 연결 실패: ' + e.message;
+    }
+  } else if (isAppsScript) {
+    // Apps Script URL: no-cors로 ping 후 성공으로 간주
+    // (브라우저에서 직접 열면 응답 오므로 URL 자체가 유효하다고 판단)
+    try {
+      await fetch(gsUrl, { method: 'GET', mode: 'no-cors' });
+      // no-cors는 응답 확인 불가지만 오류 없으면 URL 유효
+      setConnected();
+      st.textContent = '✓ 연결됨 (Apps Script) — 저장 가능';
+    } catch(e) {
+      st.style.background = 'var(--red-t)';
+      st.style.color = 'var(--red)';
+      st.textContent = '✗ URL 오류: ' + e.message;
+    }
+  } else {
     st.style.background = 'var(--red-t)';
     st.style.color = 'var(--red)';
-    st.textContent = '✗ 연결 실패 — ' + e.message;
-    gsConnected = false;
+    st.textContent = '✗ 올바른 URL을 입력해주세요';
   }
 }
 

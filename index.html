@@ -682,7 +682,6 @@ function parseProd(){
     const get=(row,n)=>{const i=hdr.indexOf(n);return i>=0?String(row[i]||'').trim():''};
     const getAlt=(row,...names)=>{for(const n of names){const v=get(row,n);if(v)return v;}return '';};
     // 컬럼명 변형 대응 (25SS는 '상품명 영문'이 다른 위치에 있을 수 있음)
-    const getAlt=(row,...names)=>{for(const n of names){const v=get(row,n);if(v)return v;}return '';};
 
     // 시트명을 드롭 태그로 변환
     let dropTag='drop?';

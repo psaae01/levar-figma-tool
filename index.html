@@ -1187,15 +1187,16 @@ function showSetupGuide() {
 async function testGsConnection() {
   if (!gsUrl) { alert('URL을 먼저 입력해주세요.'); return; }
   const st = document.getElementById('gs-conn-status');
-  st.textContent = '연결 테스트 중...';
-  st.style.color = 'var(--text3)';
+  st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3)';
+  st.textContent = '⏳ 연결 테스트 중...';
   try {
-    const res = await fetch(gsUrl + '?action=ping', { method: 'GET' });
+    const res = await fetch(gsUrl, { method: 'GET' });
     const data = await res.json();
     if (data.ok !== undefined) {
       gsConnected = true;
-      st.textContent = '✓ 연결 성공! 마스터 DB 접근 가능';
+      st.style.background = 'var(--green-t)';
       st.style.color = 'var(--green)';
+      st.textContent = '✓ 연결 성공! 마스터 DB 접근 가능';
       document.getElementById('gs-badge').textContent = '연결됨';
       document.getElementById('gs-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
       document.getElementById('gs-load-btn').disabled = false;
@@ -1206,8 +1207,9 @@ async function testGsConnection() {
       throw new Error(data.error || '응답 오류');
     }
   } catch(e) {
-    st.textContent = '✗ 연결 실패: ' + e.message;
+    st.style.background = 'var(--red-t)';
     st.style.color = 'var(--red)';
+    st.textContent = '✗ 연결 실패 — ' + e.message + ' (Apps Script 배포 설정을 확인해주세요)';
     gsConnected = false;
   }
 }

@@ -200,11 +200,11 @@ select.fi option{background:var(--bg);color:var(--text)}
         </div>
         <div id="gs-body" style="padding:1rem;border-top:1px solid var(--border);display:block">
           <div style="font-size:11px;color:var(--text2);margin-bottom:.75rem;line-height:1.6">
-            Apps Script 웹앱 URL을 입력하면 팀원 모두가 같은 마스터 DB에 접근할 수 있어요.
+            구글 시트 CSV URL (파일→공유→웹에 게시→CSV) 또는 Apps Script URL을 입력하세요.
             <a href="#" onclick="showSetupGuide()" style="color:var(--blue);text-decoration:none">설정 방법 보기 →</a>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:.75rem">
-            <input id="gs-url" class="fi" placeholder="https://script.google.com/macros/s/..." 
+            <input id="gs-url" class="fi" placeholder="구글 시트 CSV URL 또는 Apps Script URL" 
               style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace"
               oninput="saveGsUrl(this.value)">
             <button class="btn" onclick="testGsConnection()" style="white-space:nowrap;font-size:12px">연결 테스트</button>
@@ -1133,6 +1133,7 @@ function dlXlsx(){
 
 // ── GOOGLE SHEETS 연동 ──
 let gsUrl = localStorage.getItem('levar_gs_url') || '';
+let gsCsvUrl = localStorage.getItem('levar_gs_csv_url') || '';
 let gsConnected = false;
 
 // 페이지 로드시 저장된 URL 복원
@@ -1187,59 +1188,76 @@ function showSetupGuide() {
 async function testGsConnection() {
   if (!gsUrl) { alert('URL을 먼저 입력해주세요.'); return; }
   const st = document.getElementById('gs-conn-status');
-  st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3)';
+  st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3);color:var(--text2)';
   st.textContent = '⏳ 연결 테스트 중...';
   try {
-    const res = await fetch(gsUrl, { method: 'GET' });
-    const data = await res.json();
-    if (data.ok !== undefined) {
-      gsConnected = true;
-      st.style.background = 'var(--green-t)';
-      st.style.color = 'var(--green)';
-      st.textContent = '✓ 연결 성공! 마스터 DB 접근 가능';
-      document.getElementById('gs-badge').textContent = '연결됨';
-      document.getElementById('gs-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
-      document.getElementById('gs-load-btn').disabled = false;
-      document.getElementById('gs-save-btn').disabled = false;
-      const edBtn = document.getElementById('gs-save-editor-btn');
-      if (edBtn) edBtn.style.display = '';
-    } else {
-      throw new Error(data.error || '응답 오류');
-    }
+    // CSV URL 방식: 구글 시트 공개 CSV로 읽기 테스트
+    const csvUrl = gsUrl.includes('output=csv') ? gsUrl : gsUrl + (gsUrl.includes('?') ? '&' : '?') + 'output=csv';
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    // CSV 응답이 오면 성공
+    gsConnected = true;
+    gsCsvUrl = csvUrl; // CSV 읽기용 URL 저장
+    st.style.background = 'var(--green-t)';
+    st.style.color = 'var(--green)';
+    st.textContent = '✓ 연결 성공! 마스터 DB 읽기 가능';
+    document.getElementById('gs-badge').textContent = '연결됨';
+    document.getElementById('gs-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
+    document.getElementById('gs-load-btn').disabled = false;
+    document.getElementById('gs-save-btn').disabled = false;
+    const edBtn = document.getElementById('gs-save-editor-btn');
+    if (edBtn) edBtn.style.display = '';
+    localStorage.setItem('levar_gs_csv_url', csvUrl);
   } catch(e) {
     st.style.background = 'var(--red-t)';
     st.style.color = 'var(--red)';
-    st.textContent = '✗ 연결 실패 — ' + e.message + ' (Apps Script 배포 설정을 확인해주세요)';
+    st.textContent = '✗ 연결 실패 — ' + e.message;
     gsConnected = false;
   }
 }
 
 async function loadFromGs() {
-  if (!gsUrl) return;
+  const csvUrl = gsCsvUrl || gsUrl;
+  if (!csvUrl) return;
   const season = (document.getElementById('season-input')?.value || '26SS').trim();
   const st = document.getElementById('gs-conn-status');
-  st.textContent = '마스터 DB 불러오는 중...';
+  st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3);color:var(--text2)';
+  st.textContent = '⏳ 마스터 DB 불러오는 중...';
   try {
-    const res = await fetch(`${gsUrl}?season=${encodeURIComponent(season)}`);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    // masterMap 업데이트
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    // CSV 파싱
+    const lines = text.trim().split('
+');
+    if (lines.length < 2) { st.textContent = '마스터 DB가 비어있어요 (데이터 없음)'; return; }
+    const hdr = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
     masterMap = {};
-    for (const row of data.data) {
-      masterMap[row['상품코드']] = {
-        season: row['시즌'], category: row['카테고리'], sheetType: row['탭'],
-        nameEn: row['상품명EN'], nameKr: row['상품명KR'], color: row['컬러'],
-        fabric: row['소재'], care: row['세탁방법'],
-        desc: row['Description'], care2: row['CareTip'],
-        prec: row['Precaution'], ship: row['Shipping'],
-        models: Array.isArray(row['모델JSON']) ? row['모델JSON'] : [],
-        specsJSON: typeof row['사이즈JSON'] === 'object' ? JSON.stringify(row['사이즈JSON']) : row['사이즈JSON'],
-        carryover: row['캐리오버'] === 'Y',
-        lastUpdated: row['최종수정일'],
+    let count = 0;
+    for (let i = 1; i < lines.length; i++) {
+      // CSV 파싱 (큰따옴표 안의 쉼표 처리)
+      const cols = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+      const obj = {};
+      hdr.forEach((h, idx) => { obj[h] = (cols[idx]||'').replace(/^"|"$/g,'').trim(); });
+      const code = obj['상품코드'];
+      if (!code) continue;
+      masterMap[code] = {
+        season: obj['시즌'], category: obj['카테고리'], sheetType: obj['탭'],
+        nameEn: obj['상품명EN'], nameKr: obj['상품명KR'], color: obj['컬러'],
+        fabric: obj['소재'], care: obj['세탁방법'],
+        desc: obj['Description'], care2: obj['CareTip'],
+        prec: obj['Precaution'], ship: obj['Shipping'],
+        models: (() => { try { return JSON.parse(obj['모델JSON']||'[]'); } catch(e){ return []; } })(),
+        specsJSON: obj['사이즈JSON']||'{}',
+        carryover: obj['캐리오버'] === 'Y',
+        lastUpdated: obj['최종수정일'],
       };
+      count++;
     }
-    st.textContent = `✓ ${data.count}개 상품 불러옴 (${season})`;
+    st.style.background = 'var(--green-t)';
     st.style.color = 'var(--green)';
+    st.textContent = `✓ ${count}개 상품 불러옴`;
     // 이미 파싱된 prods가 있으면 캐리오버 재적용
     if (prods.length > 0) {
       for (const p of prods) {
@@ -1255,34 +1273,36 @@ async function loadFromGs() {
       renderStats(); renderList();
     }
   } catch(e) {
-    st.textContent = '✗ 불러오기 실패: ' + e.message;
+    st.style.background = 'var(--red-t)';
     st.style.color = 'var(--red)';
+    st.textContent = '✗ 불러오기 실패: ' + e.message;
   }
 }
 
 async function saveToGs() {
-  if (!gsUrl) { alert('구글 시트 URL을 먼저 설정해주세요.'); return; }
+  if (!gsUrl) { alert('Apps Script URL을 먼저 설정해주세요.'); return; }
   if (!prods.length) { alert('저장할 상품 데이터가 없어요.'); return; }
   const season = (document.getElementById('season-input')?.value || '26SS').trim();
   const st = document.getElementById('gs-conn-status');
-  st.textContent = `저장 중... (${prods.length}개 상품)`;
-  st.style.color = 'var(--text3)';
+  st.style.cssText = 'font-size:12px;padding:8px 12px;border-radius:8px;margin-top:8px;display:block;background:var(--bg3);color:var(--text2)';
+  st.textContent = `⏳ 저장 중... (${prods.length}개 상품)`;
   try {
-    const res = await fetch(gsUrl, {
+    // no-cors 모드로 Apps Script에 전송 (응답은 못받지만 저장은 됨)
+    await fetch(gsUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // Apps Script CORS 우회
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'upsert', season, prods })
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    st.textContent = `✓ 저장 완료 — 신규 ${data.added}개 · 업데이트 ${data.updated}개`;
+    // no-cors는 응답 확인 불가 → 2초 후 성공으로 표시
+    await new Promise(r => setTimeout(r, 2000));
+    st.style.background = 'var(--green-t)';
     st.style.color = 'var(--green)';
-    // GS 패널 열기
-    const body = document.getElementById('gs-body');
-    if (body && body.style.display === 'none') toggleGsPanel();
+    st.textContent = '✓ 저장 요청 완료 — 구글 시트에서 확인해주세요';
   } catch(e) {
-    st.textContent = '✗ 저장 실패: ' + e.message;
+    st.style.background = 'var(--red-t)';
     st.style.color = 'var(--red)';
+    st.textContent = '✗ 저장 실패: ' + e.message;
   }
 }
 

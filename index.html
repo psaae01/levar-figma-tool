@@ -490,7 +490,7 @@ function loadFile(n, inp){
       document.getElementById('ok3').textContent='✓ '+f.name;
       document.getElementById('dz3').classList.add('ok');
     }
-    if(wb1&&wb2) document.getElementById('runbtn').disabled=false;
+    if(wb1) document.getElementById('runbtn').disabled=false; // 사이즈기술서 없어도 변환 가능
   };
   r.readAsArrayBuffer(f);
 }
@@ -571,6 +571,7 @@ let szCode={}, szNC={}, szN={};
 
 function buildSzMap(){
   szCode={};szNC={};szN={};
+  if(!wb2) return; // 사이즈기술서 없으면 스킵
   const SKIP=new Set(['상품명','컬러','상품코드','사이즈','측정 기준','실측 위치','NaN','nan','']);
 
   for(const sn of wb2.SheetNames){

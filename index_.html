@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LEVAR · Figma Tool v5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@400;500&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fafaf8;--bg2:#f4f3f0;--bg3:#eceae5;--bg4:#e2dfd8;
+  --text:#18181b;--text2:#71717a;--text3:#a1a1aa;
+  --border:#e4e2dc;--border2:#d4d1c9;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-t:#dcfce7;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-t:#fef3c7;
+  --blue:#1d4ed8;--blue-bg:#eff6ff;--blue-t:#dbeafe;
+  --red:#dc2626;--red-bg:#fef2f2;--red-t:#fee2e2;
+  --accent:#18181b;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#111110;--bg2:#1c1c1a;--bg3:#262623;--bg4:#2f2f2b;
+  --text:#fafaf8;--text2:#a1a1aa;--text3:#52525b;
+  --border:#2e2e2b;--border2:#3d3d39;
+  --green:#4ade80;--green-bg:#052e16;--green-t:#14532d;
+  --amber:#fbbf24;--amber-bg:#1c1008;--amber-t:#292006;
+  --blue:#93c5fd;--blue-bg:#0c1a33;--blue-t:#1e3a5f;
+  --red:#f87171;--red-bg:#1c0808;--red-t:#3b0a0a;
+}}
+
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;-webkit-font-smoothing:antialiased}
+
+/* ── LAYOUT ── */
+.shell{max-width:1080px;margin:0 auto;padding:2rem 1.5rem 4rem}
+.hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border)}
+.hd-left{display:flex;align-items:center;gap:12px}
+.logo{font-size:12px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase;font-weight:500}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.pulse.live{background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.4);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.3)}50%{box-shadow:0 0 0 5px rgba(34,197,94,0)}}
+.hd-status{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace}
+
+/* ── UPLOAD SECTION ── */
+.up-wrap{max-width:580px;margin:0 auto;width:100%}
+.up-title{font-size:22px;font-weight:300;letter-spacing:-.02em;margin-bottom:.4rem}
+.up-sub{font-size:13px;color:var(--text2);margin-bottom:2rem;line-height:1.6}
+.up-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.25rem}
+.dz{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:2rem 1rem;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg2);position:relative;overflow:hidden}
+.dz::before{content:'';position:absolute;inset:0;background:var(--bg3);opacity:0;transition:opacity .15s}
+.dz:hover::before{opacity:1}
+.dz.ok{border-style:solid;border-color:var(--green);background:var(--green-bg)}
+.dz-ic{font-size:24px;margin-bottom:.6rem;position:relative;z-index:1}
+.dz-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:1rem;font-weight:500}
+.dz-t{font-size:13px;color:var(--text2);position:relative;z-index:1}
+.dz-hint{font-size:11px;color:var(--text3);margin-top:3px;position:relative;z-index:1;font-family:'DM Mono',monospace}
+.dz-ok{font-size:11px;color:var(--green);font-weight:500;margin-top:.5rem;min-height:16px;position:relative;z-index:1;font-family:'DM Mono',monospace}
+.run-btn{width:100%;padding:13px;border:none;border-radius:var(--radius);font-size:14px;cursor:pointer;background:var(--accent);color:var(--bg);transition:all .15s;font-family:'DM Sans',sans-serif;font-weight:500;letter-spacing:.01em}
+.run-btn:hover:not(:disabled){opacity:.88;transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.run-btn:disabled{opacity:.35;cursor:default;transform:none;box-shadow:none}
+.run-btn:active:not(:disabled){transform:translateY(0)}
+
+/* ── PROGRESS ── */
+.pg-wrap{margin:1rem 0}
+.pg-bar{height:2px;background:var(--border);border-radius:2px;overflow:hidden}
+.pg-fill{height:100%;background:var(--accent);width:0;transition:width .35s ease;border-radius:2px}
+.pg-msg{font-size:11px;color:var(--text3);text-align:center;margin-top:.5rem;font-family:'DM Mono',monospace}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.25rem}
+.stat{background:var(--bg2);border-radius:var(--radius-sm);padding:.75rem 1rem;border:1px solid var(--border)}
+.stat-n{font-size:22px;font-weight:400;letter-spacing:-.02em}
+.stat-l{font-size:10px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ── TOOLBAR ── */
+.tbar{display:flex;align-items:center;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
+.search{flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text);background:var(--bg);font-family:'DM Sans',sans-serif;transition:border-color .15s}
+.search:focus{outline:none;border-color:var(--border2);background:var(--bg2)}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);color:var(--text2);cursor:pointer;white-space:nowrap;background:var(--bg);transition:all .1s;font-weight:400}
+.chip:hover{background:var(--bg3)}
+.chip.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;background:var(--bg);color:var(--text);transition:all .12s;font-family:'DM Sans',sans-serif;font-weight:400;white-space:nowrap}
+.btn:hover{background:var(--bg3)}
+.btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn.primary:hover{opacity:.88}
+
+/* ── PANE LAYOUT ── */
+.panes{display:grid;grid-template-columns:290px 1fr;gap:12px;align-items:start}
+@media(max-width:700px){.panes{grid-template-columns:1fr}.up-grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* ── ITEM LIST ── */
+.ilist{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:640px;overflow-y:auto;background:var(--bg)}
+.ilist::-webkit-scrollbar{width:4px}
+.ilist::-webkit-scrollbar-track{background:transparent}
+.ilist::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.li{padding:.75rem 1rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.li:last-child{border-bottom:none}
+.li:hover{background:var(--bg2)}
+.li.sel{background:var(--bg3);border-left:2px solid var(--accent);padding-left:calc(1rem - 2px)}
+.li-name{font-size:13px;font-weight:500;line-height:1.3}
+.li-code{font-size:10px;color:var(--text3);margin-top:2px;font-family:'DM Mono',monospace}
+.tags{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap}
+.tag{font-size:10px;padding:2px 6px;border-radius:10px;background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.tag.mc{background:var(--green-t);color:var(--green);border-color:transparent}
+.tag.mn{background:var(--blue-t);color:var(--blue);border-color:transparent}
+.tag.mm{background:var(--red-t);color:var(--red);border-color:transparent}
+.tag.mod{background:var(--amber-t);color:var(--amber);border-color:transparent}
+.tag.sh{background:var(--bg4);color:var(--text2);border-color:transparent}
+
+/* ── DETAIL PANE ── */
+.dc{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);overflow:hidden}
+.dc-head{padding:1.25rem;border-bottom:1px solid var(--border)}
+.dc-name{font-size:16px;font-weight:500;letter-spacing:-.01em;line-height:1.3}
+.dc-kr{font-size:12px;color:var(--text2);margin-top:2px}
+.dc-meta{font-size:11px;color:var(--text3);margin-top:4px;font-family:'DM Mono',monospace}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500;display:inline-block;margin-top:6px}
+.badge.mc{background:var(--green-t);color:var(--green)}
+.badge.mn{background:var(--blue-t);color:var(--blue)}
+.badge.mm{background:var(--red-t);color:var(--red)}
+.badge.mod{background:var(--amber-t);color:var(--amber)}
+.dc-acts{display:flex;gap:6px;margin-top:.75rem;flex-wrap:wrap}
+.dc-body{padding:1.25rem;display:flex;flex-direction:column;gap:1.25rem}
+.sec-t{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.6rem;font-weight:500}
+
+/* ── FORM GRID ── */
+.fg{display:grid;grid-template-columns:90px 1fr;gap:5px 10px;align-items:start}
+.fl{font-size:11px;color:var(--text2);padding-top:5px}
+.fi{border:1px solid transparent;border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;color:var(--text);background:transparent;width:100%;font-family:'DM Sans',sans-serif;transition:all .12s;line-height:1.4}
+.fi:hover{border-color:var(--border);background:var(--bg2)}
+.fi:focus{border-color:var(--border2);background:var(--bg2);outline:none}
+textarea.fi{resize:vertical;min-height:80px}
+select.fi option{background:var(--bg);color:var(--text)}
+
+/* ── SIZE TABLE ── */
+.sz-wrap{overflow-x:auto}
+.szt{width:100%;border-collapse:collapse;font-size:12px}
+.szt th{font-size:10px;color:var(--text3);text-align:center;padding:5px 8px;border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;letter-spacing:.05em;background:var(--bg2)}
+.szt th:first-child{text-align:left}
+.szt td{padding:3px 4px;border-bottom:1px solid var(--bg3);color:var(--text2);vertical-align:middle;text-align:center}
+.szt td:first-child{text-align:left;padding-left:8px;font-size:11px;color:var(--text3);white-space:nowrap}
+.szt td input{border:1px solid transparent;background:transparent;font-size:12px;color:var(--text);width:56px;text-align:center;padding:3px;font-family:'DM Mono',monospace;border-radius:4px}
+.szt td input:focus{outline:none;border-color:var(--border);background:var(--bg2)}
+
+/* ── MODELS ── */
+.mrow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bg3)}
+.mrow:last-child{border-bottom:none}
+.m-name{font-size:12px;font-weight:500}
+.m-sz{font-size:11px;color:var(--text2)}
+.m-sz input{border:none;border-bottom:1px solid var(--border);background:transparent;font-size:11px;color:var(--text2);width:80px;font-family:'DM Sans',sans-serif;padding:1px}
+.add-row{display:flex;gap:6px;margin-top:.75rem}
+.add-row input{flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);background:var(--bg);font-family:'DM Sans',sans-serif}
+.add-row input:focus{outline:none;border-color:var(--border2)}
+
+/* ── EMPTY STATE ── */
+.empty{padding:3.5rem 1rem;text-align:center;color:var(--text3);font-size:13px;line-height:1.8}
+
+/* ── DROP INDICATOR ── */
+.drop-indicator{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:100;flex-direction:column;gap:12px}
+.drop-indicator.show{display:flex}
+.drop-indicator span{font-size:16px;color:#fff;letter-spacing:.05em}
+/* 캐리오버 */
+.tag.co{background:var(--amber-t);color:var(--amber);border-color:transparent}
+.co-btn{font-size:10px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text3);cursor:pointer;font-family:'DM Mono',monospace;font-weight:500;transition:all .12s;white-space:nowrap;flex-shrink:0}
+.co-btn:hover{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.co-btn.on{background:var(--amber-t);color:var(--amber);border-color:var(--amber)}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- HEADER -->
+  <div class="hd">
+    <div class="hd-left">
+      <span class="logo">LEVAR</span>
+      <span style="color:var(--border2);font-size:12px">·</span>
+      <span class="logo">Figma Tool</span>
+      <span class="pulse" id="pulse"></span>
+    </div>
+    <span class="hd-status" id="status-txt">대기 중</span>
+  </div>
+
+  <!-- UPLOAD SECTION -->
+  <div id="sup">
+    <div class="up-wrap">
+      <div class="up-title">상품 데이터 변환</div>
+      <div class="up-sub">디자인팀 상품기술서 + 사이즈기술서를 업로드하면<br>피그마 작업용 포맷으로 변환해 드려요.</div>
+
+      <!-- 구글 시트 연동 -->
+      <div id="gs-panel" style="width:100%;margin-bottom:1.5rem;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div style="padding:.75rem 1rem;background:var(--bg2);display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleGsPanel()">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:14px">🔗</span>
+            <span style="font-size:12px;font-weight:500">구글 시트 마스터 DB 연동</span>
+            <span id="gs-badge" style="font-size:10px;padding:1px 7px;border-radius:8px;background:var(--bg3);color:var(--text3)">미연결</span>
+          </div>
+          <span id="gs-toggle-ic" style="font-size:11px;color:var(--text3)">▲</span>
+        </div>
+        <div id="gs-body" style="padding:1rem;border-top:1px solid var(--border);display:block">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:.75rem;line-height:1.6">
+            Apps Script 웹앱 URL을 입력하면 팀원 모두가 같은 마스터 DB에 접근할 수 있어요.
+            <a href="#" onclick="showSetupGuide()" style="color:var(--blue);text-decoration:none">설정 방법 보기 →</a>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:.75rem">
+            <input id="gs-url" class="fi" placeholder="https://script.google.com/macros/s/..." 
+              style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace"
+              oninput="saveGsUrl(this.value)">
+            <button class="btn" onclick="testGsConnection()" style="white-space:nowrap;font-size:12px">연결 테스트</button>
+          </div>
+          <div id="gs-conn-status" style="font-size:11px;color:var(--text3)"></div>
+          <div style="display:flex;gap:6px;margin-top:.75rem">
+            <button class="btn" id="gs-load-btn" onclick="loadFromGs()" disabled style="font-size:12px">← 마스터 불러오기</button>
+            <button class="btn" id="gs-save-btn" onclick="saveToGs()" disabled style="font-size:12px;border-color:var(--amber);color:var(--amber)">마스터 저장 →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="up-grid">
+        <div>
+          <div class="dz-label">상품기술서</div>
+          <div class="dz" id="dz1" onclick="document.getElementById('f1').click()">
+            <div class="dz-ic">📄</div>
+            <div class="dz-t">파일 선택</div>
+            <div class="dz-hint">260414_르바_26SS_상품기술서.xlsx</div>
+            <div class="dz-ok" id="ok1"></div>
+          </div>
+          <input type="file" id="f1" accept=".xlsx,.xls" style="display:none" onchange="loadFile(1,this)">
+        </div>
+        <div>
+          <div class="dz-label">사이즈기술서</div>
+          <div class="dz" id="dz2" onclick="document.getElementById('f2').click()">
+            <div class="dz-ic">📐</div>
+            <div class="dz-t">파일 선택</div>
+            <div class="dz-hint">260414_26SPRING_3차_사이즈기술서.xlsx</div>
+            <div class="dz-ok" id="ok2"></div>
+          </div>
+          <input type="file" id="f2" accept=".xlsx,.xls" style="display:none" onchange="loadFile(2,this)">
+        </div>
+      </div>
+
+      <!-- 마스터 DB (선택) -->
+      <div style="margin-bottom:1rem">
+        <div class="dz-label" style="display:flex;align-items:center;gap:6px;margin-bottom:.5rem">
+          마스터 DB
+          <span style="font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 6px;border-radius:8px;font-weight:400">선택사항</span>
+        </div>
+        <div class="dz" id="dz3" onclick="document.getElementById('f3').click()" style="padding:1rem;display:flex;align-items:center;gap:12px;text-align:left">
+          <div style="font-size:18px">🗄️</div>
+          <div style="flex:1">
+            <div class="dz-t" style="font-size:12px">LEVAR_MASTER_DB.xlsx 불러오기</div>
+            <div class="dz-hint">있으면 캐리오버 자동 인식 · 없으면 신규 생성</div>
+          </div>
+          <div class="dz-ok" id="ok3" style="margin:0"></div>
+        </div>
+        <input type="file" id="f3" accept=".xlsx,.xls" style="display:none" onchange="loadFile(3,this)">
+      </div>
+
+      <!-- 시즌 입력 -->
+      <div style="margin-bottom:1rem">
+        <div class="dz-label" style="margin-bottom:.4rem">이번 시즌</div>
+        <input class="fi" id="season-input" value="26SS" placeholder="예: 26SS, 26FW, 27SS"
+          style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;width:100%">
+      </div>
+
+      <button class="run-btn" id="runbtn" onclick="run()" disabled>변환 시작 →</button>
+      <div id="pg-wrap" style="display:none">
+        <div class="pg-bar"><div class="pg-fill" id="pg-fill"></div></div>
+        <div class="pg-msg" id="pg-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDITOR SECTION -->
+  <div id="sedit" style="display:none">
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">전체 상품</div></div>
+      <div class="stat"><div class="stat-n" id="st1" style="color:var(--green)">0</div><div class="stat-l">코드 매칭</div></div>
+      <div class="stat"><div class="stat-n" id="st2" style="color:var(--blue)">0</div><div class="stat-l">이름 매칭</div></div>
+      <div class="stat"><div class="stat-n" id="st3" style="color:var(--red)">0</div><div class="stat-l">미매칭</div></div>
+      <div class="stat"><div class="stat-n" id="st4" style="color:var(--amber)">0</div><div class="stat-l">캐리오버</div></div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="tbar">
+      <input class="search" placeholder="상품명 / 컬러 / 코드 검색..." oninput="doSearch(this.value)">
+      <div id="tabs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+      <button class="btn primary" onclick="dlXlsx()">피그마용 엑셀 ↓</button>
+      <button class="btn" onclick="dlMaster()" style="border-color:var(--amber);color:var(--amber)">마스터 엑셀 ↓</button>
+      <button class="btn" id="gs-save-editor-btn" onclick="saveToGs()" style="border-color:var(--green);color:var(--green);display:none">구글시트 저장 ↑</button>
+      <button class="btn" onclick="resetAll()">처음으로</button>
+    </div>
+
+    <!-- PANES -->
+    <div class="panes">
+      <div><div class="ilist" id="ilist"></div></div>
+      <div id="dpane"><div class="empty">← 상품을 선택하면<br>상세 정보가 표시돼요</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DRAG DROP INDICATOR -->
+<div class="drop-indicator" id="drop-indicator">
+  <div style="font-size:40px">📂</div>
+  <span>파일을 여기에 놓으세요</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+
+// ── STATE ──
+let wb1=null, wb2=null, wb3=null, prods=[], sel=null, modsSet=new Set(), fSheet='전체', fQ='';
+let masterMap={}; // 상품코드 → 마스터 DB 행 데이터
+
+// ── CONSTANTS ──
+const SZ_LABEL={
+  'F':'Free','XS':'X-Small','S':'Small','M':'Medium','L':'Large','XL':'X-Large',
+  'XS/Short':'XS/Short','XS/Long':'XS/Long','S/Short':'S/Short','S/Long':'S/Long',
+  'M/Short':'M/Short','M/Long':'M/Long','L/Short':'L/Short','L/Long':'L/Long',
+  'Short':'Short','Long':'Long',
+  'F-Top':'F-Top','F-Mid':'F-Mid','F-Base':'F-Base',
+  '225-255':'225-255'
+};
+
+// 탭명 → 사이즈 측정 컬럼 (구글시트 컬럼 순서 그대로)
+const SCOLS={
+  outer7:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],
+  outer6:['Length','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],
+  outer5:['Length','Chest','Hem','SleeveWidth','SleeveLength'],
+  top7:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],
+  top6:['Length','Shoulder','Chest','Waist','Hem','Armhole'],
+  top5:['Length','Shoulder','Chest','Hem','Armhole'],
+  top4:['Length','Chest','Hem','SleeveLength'],
+  sleeveless:['Length','Shoulder','Chest','Hem','Armhole'],
+  pants:['Length','Waist','Hip','FrontRise','Thigh','Hem'],
+  denim:['Length','Waist','Hip','FrontRise','Thigh','Hem'],
+  skirt:['Length','Waist','Hip','Hem'],
+  // dress: 컬럼 조합 3가지
+  dress7:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],
+  dress6:['Length','Shoulder','Chest','Waist','Hem','Armhole'],          // Waist O, Hip X, Sleeve X
+  dress6b:['Length','Shoulder','Chest','Waist','Hip','Hem'],              // Waist O, Hip O, Sleeve X
+  dress5:['Length','Shoulder','Chest','Hem','Armhole'],                   // Waist X, Hip X, Sleeve X
+  shoes:['Heel','Width'],
+  bag:['Width','Height','Depth','Handle','Strap'],
+  acc:['Length','Width'],   // 스카프 등
+  cap:['HeadGirth','Depth','BrimLength']
+};
+
+// 컬럼 조합 완전일치 → 탭명 매핑 테이블
+// 사이즈기술서에서 실제 스캔된 패턴 기준
+const COL_SIGNATURE=[
+  // key: 정렬된 컬럼명 join, value: 탭명
+  // ── TOP ──
+  {cols:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'], tab:'top7'},
+  {cols:['Length','Shoulder','Chest','Waist','Hem','Armhole'],                      tab:'top6'},
+  {cols:['Length','Shoulder','Chest','Hem','Armhole'],                              tab:'top5'},
+  {cols:['Length','Chest','Hem','SleeveWidth','SleeveLength'],                      tab:'top4'},
+  // ── OUTER ──
+  {cols:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'], tab:'outer7'}, // top7과 동일 — 카테고리로 구분
+  {cols:['Length','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],            tab:'outer6'},
+  {cols:['Length','Chest','Hem','SleeveWidth','SleeveLength'],                      tab:'outer5'}, // top4와 동일 — 카테고리로 구분
+  // ── SLEEVELESS ──
+  {cols:['Length','Shoulder','Chest','Hem','Armhole'],                              tab:'sleeveless'}, // top5와 동일 — 카테고리로 구분
+  // ── BOTTOMS ──
+  {cols:['Length','Waist','Hip','FrontRise','Thigh','Hem'],                         tab:'pants'},
+  {cols:['Length','Waist','Hip','Hem'],                                             tab:'skirt'},
+  // ── DRESS ──
+  {cols:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'], tab:'dress7'},
+  {cols:['Length','Shoulder','Chest','Waist','Hem','Armhole'],                      tab:'dress6'},
+  {cols:['Length','Shoulder','Chest','Waist','Hip','Hem'],                          tab:'dress6b'},
+  {cols:['Length','Shoulder','Chest','Hem','Armhole'],                              tab:'dress5'},  // top5/sleeveless와 동일 — 카테고리로 구분
+  // ── ACC ──
+  {cols:['Length','Width'],                                                          tab:'acc'},
+  {cols:['HeadGirth','Depth','BrimLength'],                                          tab:'cap'},
+  // ── SHOES / BAG ──
+  {cols:['Heel','Width'],                                                            tab:'shoes'},
+  {cols:['Width','Height','Depth','Handle','Strap'],                                 tab:'bag'},
+];
+
+// 카테고리 대분류 → 컬럼 동일할 때 우선 탭
+const CAT_PRIORITY={
+  'OUTER':'outer','OUTERS':'outer','JACKET':'outer','JUMPER':'outer','COAT':'outer',
+  'DRESS':'dress','ONE-PIECE':'dress',
+  'SLEEVELESS':'sleeveless','VEST':'sleeveless',
+  'PANTS':'pants','BOTTOMS':'pants',
+  'DENIM':'denim','SKIRT':'skirt',
+  'SHOES':'shoes','BAG':'bag',
+  'ACC':'acc','SCARF':'acc','CAP':'cap','HAT':'cap',
+};
+
+function detectSheetType(availCols, baseCat, srcSheet){
+  const has=k=>availCols.has(k);
+  const src=(srcSheet||'').toUpperCase();
+  const priority=CAT_PRIORITY[baseCat]||'top';
+
+  // ── 1. 카테고리가 명확한 것들: 컬럼만 보면 됨 ──
+  if(priority==='skirt'||src==='SKIRT') return 'skirt';
+  if(priority==='sleeveless') return 'sleeveless';
+  if(priority==='shoes') return 'shoes';
+  if(priority==='bag') return 'bag';
+  if(priority==='acc') return has('HeadGirth')||has('Depth') ? 'cap' : 'acc';
+  if(priority==='cap') return 'cap';
+
+  // ── 2. pants / denim — SKIRT 시트 매칭이면 skirt로 ──
+  if(priority==='pants'||priority==='denim'){
+    if(src==='SKIRT'||(!has('FrontRise')&&!has('Thigh')&&has('Hip'))) return 'skirt';
+    return priority==='denim' ? 'denim' : 'pants';
+  }
+
+  // ── 3. dress — 컬럼 조합으로 정확히 분기 ──
+  if(priority==='dress'){
+    if(has('SleeveWidth')&&has('SleeveLength')) return 'dress7';
+    if(has('Waist')&&has('Hip'))               return 'dress6b';  // Waist+Hip
+    if(has('Waist')&&has('Armhole'))           return 'dress6';   // Waist+Armhole
+    return 'dress5';
+  }
+
+  // ── 4. outer — 컬럼 조합으로 분기 ──
+  if(priority==='outer'){
+    if(has('Shoulder')&&has('SleeveWidth')) return 'outer7';
+    if(!has('Shoulder')&&has('Armhole')&&has('SleeveWidth')) return 'outer6';
+    if(!has('Shoulder')&&!has('Armhole')&&has('SleeveWidth')) return 'outer5';
+    return 'outer7';
+  }
+
+  // ── 5. TOP 계열 — 컬럼 조합으로 정확히 분기 ──
+  // 완전일치 우선
+  if(has('Shoulder')&&has('SleeveWidth')&&has('SleeveLength')&&has('Armhole')) return 'top7';
+  if(has('Shoulder')&&has('Waist')&&has('Armhole')&&!has('SleeveWidth'))       return 'top6';
+  if(has('Shoulder')&&has('Armhole')&&!has('Waist')&&!has('SleeveWidth'))      return 'top5';
+  if(!has('Shoulder')&&has('SleeveWidth')&&has('SleeveLength')&&!has('Armhole')) return 'top4';
+  if(!has('Shoulder')&&has('SleeveLength')&&!has('Armhole'))                   return 'top4';
+
+  // 매칭 정보 없음 → 카테고리 fallback
+  const FALLBACK={
+    'KNIT':'top7','KNITWEAR':'top7','T-SHIRT':'top7','TSHIRT':'top7',
+    'TOP':'top5','BLOUSE':'top5','SHIRT':'top5','SET':'top7'
+  };
+  return FALLBACK[baseCat]||'top7';
+}
+
+// 카테고리명 정규화 → 대분류
+function normCat(raw){
+  const c=(raw||'').toUpperCase().trim();
+  const MAP={
+    'KNIT':'KNIT','KNITWEAR':'KNIT','T-SHIRT':'T-SHIRT','TSHIRT':'T-SHIRT',
+    'TOP':'TOP','BLOUSE':'TOP','SHIRT':'TOP',
+    'JACKET':'OUTER','JUMPER':'OUTER','COAT':'OUTER','OUTERS':'OUTER','OUTER':'OUTER',
+    'PANTS':'PANTS','BOTTOMS':'PANTS',
+    'DENIM':'DENIM','SKIRT':'SKIRT',
+    'DRESS':'DRESS','ONE-PIECE':'DRESS',
+    'SLEEVELESS':'SLEEVELESS','VEST':'SLEEVELESS',
+    'SET':'SET','SHOES':'SHOES','BAG':'BAG',
+    // ACC 계열 — 스카프는 acc, 볼캡은 cap으로 detectSheetType에서 분기
+    'ACC':'ACC','SCARF':'ACC','CAP':'ACC','HAT':'ACC'
+  };
+  return MAP[c]||c;
+}
+
+// 사이즈기술서 컬럼명 정규화
+const COL_NORM={
+  'Sleeve Width':'SleeveWidth','Sleeve Length':'SleeveLength',
+  'Front Rise':'FrontRise','SleeveW':'SleeveWidth','SleeveL':'SleeveLength',
+  'Head Girth':'HeadGirth','Brim Length':'BrimLength',
+  'W(바닥길이)':'SoleLength','H(발목길이)':'AnkleHeight','D(발등높이)':'InsteepHeight'
+};
+function normCol(h){return COL_NORM[h]||h}
+function norm(s){return String(s||'').trim().toLowerCase().replace(/\s+/g,' ')}
+
+// ── FILE LOAD ──
+function loadFile(n, inp){
+  const f=inp.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    if(n===1){
+      wb1=wb;
+      document.getElementById('ok1').textContent='✓ '+f.name;
+      document.getElementById('dz1').classList.add('ok');
+    } else if(n===2){
+      wb2=wb;
+      document.getElementById('ok2').textContent='✓ '+f.name;
+      document.getElementById('dz2').classList.add('ok');
+    } else if(n===3){
+      wb3=wb;
+      document.getElementById('ok3').textContent='✓ '+f.name;
+      document.getElementById('dz3').classList.add('ok');
+    }
+    if(wb1&&wb2) document.getElementById('runbtn').disabled=false;
+  };
+  r.readAsArrayBuffer(f);
+}
+
+// ── DRAG & DROP ──
+document.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('drop-indicator').classList.add('show')});
+document.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.getElementById('drop-indicator').classList.remove('show')});
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  document.getElementById('drop-indicator').classList.remove('show');
+  const files=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.xlsx')||f.name.endsWith('.xls'));
+  if(files.length===0)return;
+  // 이름으로 자동 구분: 사이즈 키워드 있으면 f2
+  files.forEach(f=>{
+    const isSize=/사이즈|size/i.test(f.name);
+    const fakeInp={files:[f]};
+    loadFile(isSize?2:1, fakeInp);
+  });
+});
+
+// ── PROGRESS ──
+function setPg(pct,msg){
+  document.getElementById('pg-wrap').style.display='block';
+  document.getElementById('pg-fill').style.width=pct+'%';
+  document.getElementById('pg-msg').textContent=msg;
+}
+
+// ── FIND HEADER ROW ──
+function findHdrRow(data, keys=['NO.','상품코드','상품명','Item']){
+  for(let i=0;i<Math.min(data.length,8);i++){
+    const row=data[i].map(v=>String(v||'').trim());
+    if(keys.some(k=>row.includes(k))) return i;
+  }
+  return 0;
+}
+
+// ── MASTER DB PARSE ──
+// MASTER 시트에서 상품코드 → 데이터 맵 빌드
+function parseMaster(){
+  masterMap={};
+  if(!wb3) return;
+  const MASTER_SN=wb3.SheetNames.find(s=>s.toUpperCase()==='MASTER')||wb3.SheetNames[0];
+  if(!MASTER_SN) return;
+  const raw=XLSX.utils.sheet_to_json(wb3.Sheets[MASTER_SN],{header:1,defval:''});
+  if(raw.length<2) return;
+  const hdr=raw[0].map(h=>String(h||'').trim());
+  const gi=n=>hdr.indexOf(n);
+  for(let r=1;r<raw.length;r++){
+    const row=raw[r];
+    const code=String(row[gi('상품코드')]||'').trim();
+    if(!code) continue;
+    masterMap[code]={
+      season:   String(row[gi('시즌')]||'').trim(),
+      category: String(row[gi('카테고리')]||'').trim(),
+      sheetType:String(row[gi('탭')]||'').trim(),
+      nameEn:   String(row[gi('상품명EN')]||'').trim(),
+      nameKr:   String(row[gi('상품명KR')]||'').trim(),
+      color:    String(row[gi('컬러')]||'').trim(),
+      fabric:   String(row[gi('소재')]||'').trim(),
+      care:     String(row[gi('세탁방법')]||'').trim(),
+      desc:     String(row[gi('Description')]||'').trim(),
+      care2:    String(row[gi('CareTip')]||'').trim(),
+      prec:     String(row[gi('Precaution')]||'').trim(),
+      ship:     String(row[gi('Shipping')]||'').trim(),
+      models:   (() => {
+        try{ return JSON.parse(String(row[gi('모델JSON')]||'[]')); }catch(e){ return []; }
+      })(),
+      specsJSON: String(row[gi('사이즈JSON')]||'{}'),
+      carryover: String(row[gi('캐리오버')]||'').trim()==='Y',
+      lastUpdated: String(row[gi('최종수정일')]||'').trim(),
+    };
+  }
+  console.log(`마스터 DB 로드: ${Object.keys(masterMap).length}개 상품`);
+}
+
+// ── SIZE MAP BUILD ──
+let szCode={}, szNC={}, szN={};
+
+function buildSzMap(){
+  szCode={};szNC={};szN={};
+  const SKIP=new Set(['상품명','컬러','상품코드','사이즈','측정 기준','실측 위치','NaN','nan','']);
+
+  for(const sn of wb2.SheetNames){
+    const raw=XLSX.utils.sheet_to_json(wb2.Sheets[sn],{header:1,defval:''});
+    if(raw.length<2) continue;
+    const hi=findHdrRow(raw,['상품명','상품코드','Length','Heel']);
+    const hdr=raw[hi].map(h=>String(h||'').trim());
+    const iCode=hdr.findIndex(h=>h==='상품코드');
+    const iName=hdr.findIndex(h=>h==='상품명');
+    const iColor=hdr.findIndex(h=>h==='컬러');
+    const iSize=hdr.findIndex(h=>h==='사이즈');
+
+    const specCols=[];
+    hdr.forEach((h,i)=>{
+      if(h&&!SKIP.has(h)&&!h.startsWith('Unnamed')&&!h.startsWith('사이즈.')&&
+         !h.startsWith('측정 기준')&&i!==iCode&&i!==iName&&i!==iColor&&i!==iSize){
+        specCols.push({h:normCol(h),i});
+      }
+    });
+
+    const groups={};
+    for(let r=hi+1;r<raw.length;r++){
+      const row=raw[r];
+      const code=String(row[iCode>=0?iCode:2]||'').trim();
+      const name=String(row[iName>=0?iName:0]||'').trim();
+      const color=String(row[iColor>=0?iColor:1]||'').trim();
+      const size=String(row[iSize>=0?iSize:3]||'').trim();
+      if(!name&&!code) continue;
+
+      const specs={};
+      specCols.forEach(({h,i})=>{
+        const v=row[i];
+        if(v!==''&&v!=null&&!isNaN(Number(v))&&Number(v)>0) specs[h]=Number(v);
+      });
+
+      if(code&&Object.keys(specs).length>0){
+        if(!szCode[code]) szCode[code]={sizes:[],specs:{},srcSheet:sn};
+        if(!szCode[code].sizes.includes(size)) szCode[code].sizes.push(size);
+        specCols.forEach(({h})=>{
+          if(specs[h]!==undefined){
+            if(!szCode[code].specs[h]) szCode[code].specs[h]=[];
+            szCode[code].specs[h].push(specs[h]);
+          }
+        });
+      }
+
+      if(name){
+        const k=norm(name)+'||'+norm(color);
+        if(!groups[k]) groups[k]={name,color,sizes:[],specs:{},srcSheet:sn};
+        if(size&&!groups[k].sizes.includes(size)) groups[k].sizes.push(size);
+        specCols.forEach(({h})=>{
+          if(specs[h]!==undefined){
+            if(!groups[k].specs[h]) groups[k].specs[h]=[];
+            groups[k].specs[h].push(specs[h]);
+          }
+        });
+      }
+    }
+
+    for(const[k,v]of Object.entries(groups)){
+      if(!szNC[k]) szNC[k]=v;
+      const nk=k.split('||')[0];
+      if(!szN[nk]) szN[nk]=v;
+    }
+  }
+}
+
+// ── SIZE MATCH ──
+function matchSz(codes, nameEn, nameKr, color){
+  // 1순위: 코드 (여러 코드 합산)
+  if(codes.length>0){
+    const merged={sizes:[],specs:{},srcSheet:''};
+    let found=false;
+    for(const code of codes){
+      if(szCode[code]){
+        found=true;
+        if(!merged.srcSheet) merged.srcSheet=szCode[code].srcSheet||'';
+        szCode[code].sizes.forEach(sz=>{if(!merged.sizes.includes(sz)) merged.sizes.push(sz)});
+        for(const[k,vals]of Object.entries(szCode[code].specs)){
+          if(!merged.specs[k]) merged.specs[k]=[];
+          merged.specs[k].push(...vals);
+        }
+      }
+    }
+    if(found) return{...merged,by:'code'};
+  }
+  // 2순위: 이름+컬러
+  const k1=norm(nameEn)+'||'+norm(color);
+  if(szNC[k1]) return{...szNC[k1],by:'name+color'};
+  if(nameKr){const k2=norm(nameKr)+'||'+norm(color);if(szNC[k2])return{...szNC[k2],by:'name+color'};}
+  // 3순위: 이름만
+  if(szN[norm(nameEn)]) return{...szN[norm(nameEn)],by:'name-only'};
+  if(nameKr&&szN[norm(nameKr)]) return{...szN[norm(nameKr)],by:'name-only'};
+  return{sizes:[],specs:{},srcSheet:'',by:'none'};
+}
+
+// ── PARSE PRODUCTS ──
+function parseProd(){
+  prods=[];
+  // drop2 위주이지만 전체 시트 파싱 (필터링은 UI에서)
+  const TARGET_SHEETS=['26SPRING SUMMER(drop2)','26SPRING(drop1)','26SUMMER(drop3)','26캡슐'];
+
+  for(const sn of wb1.SheetNames){
+    const raw=XLSX.utils.sheet_to_json(wb1.Sheets[sn],{header:1,defval:''});
+    const hi=findHdrRow(raw,['NO.','상품코드']);
+    if(hi<0) continue;
+    const hdr=raw[hi].map(h=>String(h||'').trim());
+    const get=(row,n)=>{const i=hdr.indexOf(n);return i>=0?String(row[i]||'').trim():''};
+
+    // 시트명을 드롭 태그로 변환
+    let dropTag='drop?';
+    if(sn.includes('drop1')) dropTag='drop1';
+    else if(sn.includes('drop2')) dropTag='drop2';
+    else if(sn.includes('drop3')) dropTag='drop3';
+    else if(sn.includes('캡슐')) dropTag='캡슐';
+
+    const groups={};
+    for(let r=hi+1;r<raw.length;r++){
+      const row=raw[r];
+      const no=get(row,'NO.');
+      if(!no||isNaN(parseFloat(no))) continue;
+      const code=get(row,'상품코드');
+      const rawName=get(row,'상품명 영문');
+      const parts=rawName.split('\n').map(s=>s.trim());
+      const nameEn=parts[0]||rawName;
+      const nameKr=parts[1]||'';
+      const color=get(row,'컬러');
+      const size=get(row,'사이즈');
+      const cat=(get(row,'카테고리')||'').toUpperCase().trim();
+
+      if(!nameEn&&!code) continue;
+
+      const key=norm(nameEn||code)+'||'+norm(color);
+      if(!groups[key]){
+        // 모델 파싱 - 컬럼명 두 가지 모두 시도
+        const mStr=get(row,'착용 모델')||get(row,'착용 모델');
+        const mSz=get(row,'모델 착장 사이즈');
+        const models=[];
+        if(mStr){
+          mStr.split('\n').map(s=>s.trim()).filter(Boolean).forEach((m,i)=>{
+            models.push({name:m, wearSize:(mSz.split('\n')[i]||'').trim()});
+          });
+        }
+
+        // Description 분리
+        const descRaw=get(row,'Description').replace(/^\s*\\n/,'').replace(/^\\n/,'');
+        let desc=descRaw, tip='', care2='', prec='', ship='';
+        const ci=descRaw.indexOf('[Care Tip]');
+        if(ci>0){tip=descRaw.slice(ci).trim(); desc=descRaw.slice(0,ci).trim();}
+        // TIP 컬럼도 확인
+        const tipIdx=hdr.findIndex(h=>h==='TIP'||h==='Tip');
+        if(!tip&&tipIdx>=0) tip=String(row[tipIdx]||'').trim();
+        // 파싱
+        if(tip){
+          const cm=tip.match(/\[Care Tip\]([\s\S]*?)(?=\[Shipping\]|\[Precaution\]|$)/);
+          const sm=tip.match(/\[Shipping\]([\s\S]*?)(?=\[Precaution\]|$)/);
+          const pm=tip.match(/\[Precaution\]([\s\S]*)/);
+          if(cm) care2=cm[1].replace(/^-\s*/gm,'').trim();
+          if(sm) ship=sm[1].replace(/^-\s*/gm,'').trim();
+          if(pm) prec=pm[1].replace(/^-\s*/gm,'').trim();
+        }
+        // desc에서 - 불릿 제거
+        desc=desc.replace(/^-\s*/gm,'').trim();
+
+        // 마스터 DB에서 기존 데이터 불러오기 (캐리오버 자동 인식)
+        const masterRow=masterMap[code]||null;
+        const isCarryover=!!masterRow;
+
+        // 모델: 기술서 우선, 없으면 마스터
+        const finalModels = models.length>0 ? models : (masterRow?.models||[]);
+
+        // 텍스트: 기술서 우선, 없으면 마스터에서 상속
+        const finalDesc  = desc   || masterRow?.desc  || '';
+        const finalCare2 = care2  || masterRow?.care2 || '';
+        const finalPrec  = prec   || masterRow?.prec  || '';
+        const finalShip  = ship   || masterRow?.ship  || '';
+        const finalFabric= get(row,'소재') || masterRow?.fabric || '';
+        const finalCare  = get(row,'세탁방법') || masterRow?.care || '드라이클리닝';
+
+        groups[key]={
+          no:parseFloat(no), firstCode:code, codes:[], drop:dropTag,
+          nameEn:nameEn||rawName, nameKr, category:cat,
+          baseCat:normCat(cat),
+          sheetType:'top7', // matchSz 후 detectSheetType으로 덮어씀
+          color, sizes:[],
+          fabric:finalFabric, country:get(row,'제조국'),
+          care:finalCare,
+          models:finalModels, desc:finalDesc, care2:finalCare2, prec:finalPrec, ship:finalShip,
+          modified:false,
+          carryover:isCarryover,
+          _origModels:isCarryover ? JSON.parse(JSON.stringify(finalModels)) : null,
+          masterKey:code, // 마스터 DB upsert용 키
+        };
+      }
+      if(code) groups[key].codes.push(code);
+      if(size&&!groups[key].sizes.includes(size)) groups[key].sizes.push(size);
+    }
+
+    for(const[,g]of Object.entries(groups)){
+      const sm=matchSz(g.codes, g.nameEn, g.nameKr, g.color);
+      const finalSizes=sm.sizes.length>0?sm.sizes:g.sizes;
+      // 실제 사이즈기술서 컬럼 조합으로 탭 자동 결정
+      const availCols=new Set(Object.keys(sm.specs));
+      const sheetType=detectSheetType(availCols, g.baseCat, sm.srcSheet);
+      prods.push({...g, sheetType,
+        size:finalSizes.map(s=>SZ_LABEL[s]||s).join('\n'),
+        sizeRaw:finalSizes, specs:sm.specs, matchedBy:sm.by
+      });
+    }
+  }
+  prods.sort((a,b)=>a.no-b.no);
+}
+
+// ── RUN ──
+function run(){
+  document.getElementById('runbtn').disabled=true;
+  setPg(5,'마스터 DB & 사이즈기술서 파싱 중...');
+  setTimeout(()=>{
+    try{
+      parseMaster();
+      buildSzMap();
+      setPg(50,'상품기술서 파싱 & 매칭 중...');
+      setTimeout(()=>{
+        parseProd();
+        setPg(100,'완료!');
+        setTimeout(()=>{
+          document.getElementById('sup').style.display='none';
+          document.getElementById('sedit').style.display='block';
+          document.getElementById('pulse').classList.add('live');
+          document.getElementById('status-txt').textContent='변환 완료 · '+prods.length+'개 상품 · '+[...new Set(prods.map(p=>p.sheetType))].length+'개 탭';
+          buildTabs(); renderStats(); renderList();
+        },300);
+      },200);
+    }catch(e){
+      setPg(0,'');
+      document.getElementById('pg-msg').textContent='오류: '+e.message;
+      document.getElementById('runbtn').disabled=false;
+      console.error(e);
+    }
+  },100);
+}
+
+// ── TABS ──
+function buildTabs(){
+  const sheets=['전체', ...new Set(prods.map(p=>p.sheetType))];
+  document.getElementById('tabs').innerHTML=sheets.map(s=>
+    `<div class="chip${s==='전체'?' on':''}" onclick="setTab('${s}',this)">${s}</div>`
+  ).join('');
+}
+function setTab(s,el){
+  fSheet=s;
+  document.querySelectorAll('#tabs .chip').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderList();
+}
+function doSearch(q){fQ=q;renderList()}
+function filtered(){
+  return prods.filter(p=>{
+    const ms=fSheet==='전체'||p.sheetType===fSheet;
+    const q=fQ.toLowerCase();
+    return ms&&(!q||(p.nameEn+p.color+(p.firstCode||'')+p.nameKr).toLowerCase().includes(q));
+  });
+}
+
+// ── RENDER STATS ──
+function renderStats(){
+  document.getElementById('st0').textContent=prods.length;
+  document.getElementById('st1').textContent=prods.filter(p=>p.matchedBy==='code').length;
+  document.getElementById('st2').textContent=prods.filter(p=>p.matchedBy==='name+color'||p.matchedBy==='name-only').length;
+  document.getElementById('st3').textContent=prods.filter(p=>p.matchedBy==='none').length;
+  const st4=document.getElementById('st4');
+  if(st4) st4.textContent=prods.filter(p=>p.carryover).length;
+}
+
+const MB={'code':'✓ 코드 매칭','name+color':'✓ 이름+컬러 매칭','name-only':'△ 이름만 매칭','none':'✗ 미매칭'};
+const TC={'code':'mc','name+color':'mn','name-only':'mn','none':'mm'};
+
+// ── RENDER LIST ──
+function renderList(){
+  const f=filtered();
+  const el=document.getElementById('ilist');
+  if(!f.length){el.innerHTML='<div class="empty">결과 없음</div>';return}
+  el.innerHTML=f.map(p=>{
+    const idx=prods.indexOf(p);
+    const szCount=p.sizeRaw?p.sizeRaw.length:0;
+    return`<div class="li${sel===idx?' sel':''}" onclick="selItem(${idx})">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+        <div style="flex:1;min-width:0">
+          <div class="li-name">${p.nameEn}</div>
+          <div class="li-code">${p.firstCode||'(코드없음)'}</div>
+          <div class="tags">
+            <span class="tag sh">${p.sheetType}</span>
+            <span class="tag">${p.color}</span>
+            ${szCount?`<span class="tag">${szCount}사이즈</span>`:''}
+            <span class="tag ${TC[p.matchedBy]||'mm'}">${MB[p.matchedBy]||'-'}</span>
+            ${p.carryover?'<span class="tag co">캐리오버</span>':''}
+            ${p.modified?'<span class="tag mod">수정됨</span>':''}
+          </div>
+        </div>
+        <button class="co-btn${p.carryover?' on':''}" onclick="event.stopPropagation();toggleCO(${idx})" title="캐리오버 토글">CO</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER DETAIL ──
+function selItem(idx){sel=idx;renderList();renderDetail()}
+function getSeason(){return(document.getElementById('season-input')?.value||'26SS').trim();}
+
+function renderDetail(){
+  const p=prods[sel]; if(!p) return;
+  const sc=SCOLS[p.sheetType]||[];
+  const sizeLabels=p.sizeRaw||[];
+  const allSheets=Object.keys(SCOLS);
+
+  // 사이즈 테이블
+  let szTable='';
+  if(sc.length&&sizeLabels.length){
+    const ths=sizeLabels.map(s=>`<th>${SZ_LABEL[s]||s}</th>`).join('');
+    const trs=sc.map(k=>{
+      const vals=p.specs[k]||[];
+      const tds=sizeLabels.map((_,i)=>`<td><input value="${vals[i]!==undefined?vals[i]:''}" onchange="updSpec(${sel},'${k}',${i},this.value)"/></td>`).join('');
+      return`<tr><td>${k}</td>${tds}</tr>`;
+    }).join('');
+    szTable=`<div class="sz-wrap"><table class="szt"><thead><tr><th>항목</th>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  } else {
+    szTable=`<div style="font-size:12px;color:var(--text3);padding:.5rem 0">${sc.length?'사이즈 데이터 없음 (미매칭)':'사이즈 컬럼 없는 카테고리'}</div>`;
+  }
+
+  const mbCls=TC[p.matchedBy]||'mm';
+  const mbTxt=MB[p.matchedBy]||'-';
+
+  document.getElementById('dpane').innerHTML=`
+  <div class="dc">
+    <div class="dc-head">
+      <div class="dc-name">${p.nameEn}${p.modified?' <span class="badge mod">수정됨</span>':''}</div>
+      ${p.nameKr?`<div class="dc-kr">${p.nameKr}</div>`:''}
+      <div class="dc-meta">${p.sheetType} · ${p.drop||getSeason()} · ${(p.codes||[]).join(', ')||'코드없음'}</div>
+      <span class="badge ${mbCls}">${mbTxt}</span>
+      <div class="dc-acts">
+        <button class="btn" onclick="copyItem(${sel})">+ 컬러 복사</button>
+        <button class="btn${p.carryover?' co-btn on':' co-btn'}" onclick="toggleCO(${sel})">
+          ${p.carryover?'✓ 캐리오버':'캐리오버'}
+        </button>
+      </div>
+      ${p.carryover?`<div style="font-size:11px;color:var(--amber);background:var(--amber-bg);padding:6px 10px;border-radius:6px;margin-top:8px">캐리오버 — 모델 정보가 기술서 기준으로 적용됩니다. Description·소재 등은 유지돼요.</div>`:''}
+    </div>
+    <div class="dc-body">
+
+      <div>
+        <div class="sec-t">기본 정보</div>
+        <div class="fg">
+          <span class="fl">컬러</span><input class="fi" value="${p.color}" onchange="upd(${sel},'color',this.value)">
+          <span class="fl">소재</span><input class="fi" value="${esc(p.fabric)}" onchange="upd(${sel},'fabric',this.value)">
+          <span class="fl">제조국</span><input class="fi" value="${p.country||''}" onchange="upd(${sel},'country',this.value)">
+          <span class="fl">세탁</span><input class="fi" value="${p.care||''}" onchange="upd(${sel},'care',this.value)">
+          <span class="fl">탭(시트)</span>
+          <select class="fi" onchange="upd(${sel},'sheetType',this.value)">
+            ${allSheets.map(s=>`<option value="${s}"${s===p.sheetType?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-t">사이즈 실측 (${sizeLabels.length}개 사이즈)</div>
+        ${szTable}
+      </div>
+
+      <div>
+        <div class="sec-t">착용 모델</div>
+        ${p.models.map((m,mi)=>`<div class="mrow">
+          <div>
+            <div class="m-name">${m.name}</div>
+            <div class="m-sz">착장: <input value="${m.wearSize}" onchange="updModel(${sel},${mi},'wearSize',this.value)"/></div>
+          </div>
+          <button class="btn" onclick="rmModel(${sel},${mi})">삭제</button>
+        </div>`).join('')||'<div style="font-size:12px;color:var(--text3)">모델 정보 없음</div>'}
+        <div class="add-row">
+          <input placeholder="모델명 (예: Minna Gibson 175cm)" id="nm-n">
+          <input placeholder="착장 사이즈" id="nm-s" style="max-width:110px">
+          <button class="btn" onclick="addModel(${sel})">+ 추가</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-t">Description</div>
+        <textarea class="fi" style="width:100%;min-height:100px" onchange="upd(${sel},'desc',this.value)">${p.desc||''}</textarea>
+      </div>
+
+      ${p.care2||p.prec||p.ship?`<div>
+        <div class="sec-t">Care Tip · Precaution · Shipping</div>
+        ${p.care2?`<div style="margin-bottom:.6rem"><div style="font-size:10px;color:var(--text3);margin-bottom:3px">CARE TIP</div><textarea class="fi" style="width:100%;min-height:60px" onchange="upd(${sel},'care2',this.value)">${p.care2}</textarea></div>`:''}
+        ${p.prec?`<div style="margin-bottom:.6rem"><div style="font-size:10px;color:var(--text3);margin-bottom:3px">PRECAUTION</div><textarea class="fi" style="width:100%;min-height:60px" onchange="upd(${sel},'prec',this.value)">${p.prec}</textarea></div>`:''}
+        ${p.ship?`<div><div style="font-size:10px;color:var(--text3);margin-bottom:3px">SHIPPING</div><textarea class="fi" style="width:100%;min-height:40px" onchange="upd(${sel},'ship',this.value)">${p.ship}</textarea></div>`:''}
+      </div>`:''}
+
+    </div>
+  </div>`;
+}
+
+function esc(s){return String(s||'').replace(/"/g,'&quot;')}
+function upd(i,f,v){prods[i][f]=v;mark(i)}
+function updSpec(i,k,szIdx,v){if(!prods[i].specs[k])prods[i].specs[k]=[];prods[i].specs[k][szIdx]=v;mark(i)}
+function updModel(i,mi,f,v){prods[i].models[mi][f]=v;mark(i)}
+function rmModel(i,mi){prods[i].models.splice(mi,1);mark(i);renderDetail()}
+function addModel(i){
+  const n=document.getElementById('nm-n').value.trim();
+  const s=document.getElementById('nm-s').value.trim();
+  if(!n)return;
+  prods[i].models.push({name:n,wearSize:s});mark(i);renderDetail();
+}
+function mark(i){prods[i].modified=true;modsSet.add(i);renderStats();renderList()}
+
+// ── 캐리오버 토글 ──
+function toggleCO(i){
+  prods[i].carryover=!prods[i].carryover;
+  // 캐리오버 ON: 기술서 모델 정보로 덮어쓰기 (원본 모델 백업 후 복원 가능)
+  if(prods[i].carryover){
+    prods[i]._origModels=JSON.parse(JSON.stringify(prods[i].models));
+  } else {
+    // 캐리오버 OFF: 원본 모델로 복원
+    if(prods[i]._origModels) prods[i].models=JSON.parse(JSON.stringify(prods[i]._origModels));
+  }
+  mark(i);
+  if(sel===i) renderDetail();
+}
+function copyItem(i){
+  const c=JSON.parse(JSON.stringify(prods[i]));
+  c.color='New Color';c.modified=true;c.codes=[];c.firstCode='';c.matchedBy='none';c.no=prods.length+1;
+  prods.splice(i+1,0,c);modsSet.add(i+1);renderStats();renderList();selItem(i+1);
+}
+
+// ── EXPORT XLSX ──
+// ── 마스터 DB 저장 ──
+function dlMaster(){
+  const season=(document.getElementById('season-input')?.value||'26SS').trim();
+  const today=new Date().toISOString().slice(0,10);
+  const wbOut=XLSX.utils.book_new();
+
+  // MASTER 시트 헤더
+  const HDR=['상품코드','시즌','카테고리','탭','상품명EN','상품명KR','컬러','소재',
+    '세탁방법','Description','CareTip','Precaution','Shipping',
+    '모델JSON','사이즈JSON','캐리오버','최종수정일'];
+
+  // 기존 마스터 데이터 (wb3에서 로드한 것) + 이번 시즌 upsert
+  const masterRows={...masterMap}; // 코드→데이터 맵
+
+  // 이번 시즌 작업 데이터로 upsert
+  for(const p of prods){
+    const codes=p.codes.length>0?p.codes:[p.firstCode||p.nameEn];
+    for(const code of codes){
+      if(!code) continue;
+      masterRows[code]={
+        season, category:p.category, sheetType:p.sheetType,
+        nameEn:p.nameEn, nameKr:p.nameKr, color:p.color,
+        fabric:p.fabric||'', care:p.care||'',
+        desc:p.desc||'', care2:p.care2||'', prec:p.prec||'', ship:p.ship||'',
+        models:p.models,
+        specsJSON:JSON.stringify(p.specs||{}),
+        carryover:p.carryover?'Y':'N',
+        lastUpdated:today,
+      };
+    }
+  }
+
+  // MASTER 시트 생성
+  const masterData=[HDR];
+  for(const[code,d]of Object.entries(masterRows)){
+    masterData.push([
+      code, d.season||'', d.category||'', d.sheetType||'',
+      d.nameEn||'', d.nameKr||'', d.color||'', d.fabric||'',
+      d.care||'', d.desc||'', d.care2||'', d.prec||'', d.ship||'',
+      JSON.stringify(d.models||[]),
+      typeof d.specsJSON==='string'?d.specsJSON:JSON.stringify(d.specsJSON||{}),
+      d.carryover||'N', d.lastUpdated||today,
+    ]);
+  }
+  const wsMaster=XLSX.utils.aoa_to_sheet(masterData);
+  wsMaster['!cols']=[{wch:16},{wch:8},{wch:12},{wch:10},{wch:30},{wch:20},{wch:16},
+    {wch:30},{wch:14},{wch:60},{wch:50},{wch:50},{wch:40},
+    {wch:40},{wch:30},{wch:6},{wch:12}];
+  XLSX.utils.book_append_sheet(wbOut,wsMaster,'MASTER');
+
+  // 시즌별 시트 — 이번 시즌 데이터만
+  const seasonData=[HDR];
+  for(const[code,d]of Object.entries(masterRows)){
+    if(d.season===season) seasonData.push(masterData.find(r=>r[0]===code)||[]);
+  }
+  if(seasonData.length>1){
+    const wsSeason=XLSX.utils.aoa_to_sheet(seasonData);
+    XLSX.utils.book_append_sheet(wbOut,wsSeason,season);
+  }
+
+  // 기존 시즌 시트 유지 (wb3에서 그대로 복사)
+  if(wb3){
+    for(const sn of wb3.SheetNames){
+      if(sn.toUpperCase()==='MASTER'||sn===season) continue;
+      try{ XLSX.utils.book_append_sheet(wbOut,wb3.Sheets[sn],sn); }catch(e){}
+    }
+  }
+
+  XLSX.writeFile(wbOut,'LEVAR_MASTER_DB_'+today+'.xlsx');
+}
+
+function dlXlsx(){
+  const wbOut=XLSX.utils.book_new();
+  // Filter data 시트
+  const wsf=XLSX.utils.aoa_to_sheet([['시즌','모델사진','이름 / 스펙 / 착용사이즈','사이즈']]);
+  XLSX.utils.book_append_sheet(wbOut,wsf,'Filter data');
+
+  // 탭 순서 고정 + 탭별 그룹핑
+  const TAB_ORDER=['Filter data','outer7','outer6','outer5','top7','top6','top5','top4',
+    'sleeveless','pants','denim','skirt','dress7','dress6','dress6b','dress5',
+    'shoes','bag','acc','cap'];
+  const groups={};
+  for(const p of prods){if(!groups[p.sheetType])groups[p.sheetType]=[];groups[p.sheetType].push(p);}
+
+  // 데이터 있는 탭만, 고정 순서대로 출력
+  const orderedTabs=TAB_ORDER.filter(t=>t!=='Filter data'&&groups[t]&&groups[t].length>0);
+  for(const st of orderedTabs){
+    const ps=groups[st];
+    const sc=SCOLS[st]||[];
+    const hdrs=['Item','Description','Fabric','Color','Size1',...sc,
+      'Model1','Model2','Model3','Model4','Care','CareTip2','Precaution2','SP','Shipping',
+      'Making','Making2','Making3','Making4','Making5','Making6'];
+    const rows=[hdrs];
+    for(const p of ps){
+      const m1=p.models[0]?`${p.models[0].name}\nWears size ${p.models[0].wearSize}`:'';
+      const m2=p.models[1]?`${p.models[1].name}\nWears size ${p.models[1].wearSize}`:'';
+      const szVals=sc.map(k=>(p.specs[k]||[]).join('\n'));
+      const ship=p.ship||'미흡한 마감 처리(초크 자국, 실밥, ±1~2cm 사이즈 오차, 패턴 불규칙 등)는 교환 및 반품 사유에 해당하지 않습니다.';
+      rows.push([
+        p.nameEn, p.desc||'', p.fabric||'', p.color, p.size||'',
+        ...szVals, m1, m2, '', '',
+        p.care||'드라이클리닝', p.care2||'', p.prec||'',
+        'Shipping', ship, '','','','','',''
+      ]);
+    }
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:28},{wch:60},{wch:35},{wch:16},{wch:14},
+      ...sc.map(()=>({wch:9})),
+      {wch:45},{wch:45},{wch:10},{wch:10},{wch:16},{wch:60},{wch:60},{wch:10},{wch:60},
+      ...Array(6).fill({wch:5})];
+    XLSX.utils.book_append_sheet(wbOut,ws,st);
+  } // end for orderedTabs
+  XLSX.writeFile(wbOut,'LEVAR_피그마_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ── GOOGLE SHEETS 연동 ──
+let gsUrl = localStorage.getItem('levar_gs_url') || '';
+let gsConnected = false;
+
+// 페이지 로드시 저장된 URL 복원
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('levar_gs_url');
+  if (saved) {
+    const inp = document.getElementById('gs-url');
+    if (inp) { inp.value = saved; gsUrl = saved; }
+  }
+});
+
+function saveGsUrl(v) {
+  gsUrl = v.trim();
+  localStorage.setItem('levar_gs_url', gsUrl);
+}
+
+function toggleGsPanel() {
+  const body = document.getElementById('gs-body');
+  const ic = document.getElementById('gs-toggle-ic');
+  const show = body.style.display === 'none';
+  body.style.display = show ? 'block' : 'none';
+  ic.textContent = show ? '▲' : '▼';
+}
+
+function showSetupGuide() {
+  alert(
+    '📋 Apps Script 설정 방법
+
+' +
+    '1. 구글 시트 새로 만들기
+' +
+    '2. 확장 프로그램 → Apps Script
+' +
+    '3. 기존 코드 전체 삭제 후 제공된 .gs 파일 내용 붙여넣기
+' +
+    '4. 저장 (Ctrl+S)
+' +
+    '5. 배포 → 새 배포 → 유형: 웹 앱
+' +
+    '6. 다음 사용자로 실행: 나
+' +
+    '7. 액세스 권한: 모든 사용자
+' +
+    '8. 배포 → URL 복사 후 여기에 붙여넣기
+
+' +
+    '⚠️ 팀원이 쓰려면 구글 시트를 공유하고
+같은 URL을 팀원에게 전달하면 돼요.'
+  );
+}
+
+async function testGsConnection() {
+  if (!gsUrl) { alert('URL을 먼저 입력해주세요.'); return; }
+  const st = document.getElementById('gs-conn-status');
+  st.textContent = '연결 테스트 중...';
+  st.style.color = 'var(--text3)';
+  try {
+    const res = await fetch(gsUrl + '?action=ping', { method: 'GET' });
+    const data = await res.json();
+    if (data.ok !== undefined) {
+      gsConnected = true;
+      st.textContent = '✓ 연결 성공! 마스터 DB 접근 가능';
+      st.style.color = 'var(--green)';
+      document.getElementById('gs-badge').textContent = '연결됨';
+      document.getElementById('gs-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
+      document.getElementById('gs-load-btn').disabled = false;
+      document.getElementById('gs-save-btn').disabled = false;
+      const edBtn = document.getElementById('gs-save-editor-btn');
+      if (edBtn) edBtn.style.display = '';
+    } else {
+      throw new Error(data.error || '응답 오류');
+    }
+  } catch(e) {
+    st.textContent = '✗ 연결 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+    gsConnected = false;
+  }
+}
+
+async function loadFromGs() {
+  if (!gsUrl) return;
+  const season = (document.getElementById('season-input')?.value || '26SS').trim();
+  const st = document.getElementById('gs-conn-status');
+  st.textContent = '마스터 DB 불러오는 중...';
+  try {
+    const res = await fetch(`${gsUrl}?season=${encodeURIComponent(season)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    // masterMap 업데이트
+    masterMap = {};
+    for (const row of data.data) {
+      masterMap[row['상품코드']] = {
+        season: row['시즌'], category: row['카테고리'], sheetType: row['탭'],
+        nameEn: row['상품명EN'], nameKr: row['상품명KR'], color: row['컬러'],
+        fabric: row['소재'], care: row['세탁방법'],
+        desc: row['Description'], care2: row['CareTip'],
+        prec: row['Precaution'], ship: row['Shipping'],
+        models: Array.isArray(row['모델JSON']) ? row['모델JSON'] : [],
+        specsJSON: typeof row['사이즈JSON'] === 'object' ? JSON.stringify(row['사이즈JSON']) : row['사이즈JSON'],
+        carryover: row['캐리오버'] === 'Y',
+        lastUpdated: row['최종수정일'],
+      };
+    }
+    st.textContent = `✓ ${data.count}개 상품 불러옴 (${season})`;
+    st.style.color = 'var(--green)';
+    // 이미 파싱된 prods가 있으면 캐리오버 재적용
+    if (prods.length > 0) {
+      for (const p of prods) {
+        const m = masterMap[p.firstCode];
+        if (m) {
+          p.carryover = true;
+          if (!p.desc && m.desc) p.desc = m.desc;
+          if (!p.care2 && m.care2) p.care2 = m.care2;
+          if (!p.prec && m.prec) p.prec = m.prec;
+          if (m.models && m.models.length > 0 && p.models.length === 0) p.models = m.models;
+        }
+      }
+      renderStats(); renderList();
+    }
+  } catch(e) {
+    st.textContent = '✗ 불러오기 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+  }
+}
+
+async function saveToGs() {
+  if (!gsUrl) { alert('구글 시트 URL을 먼저 설정해주세요.'); return; }
+  if (!prods.length) { alert('저장할 상품 데이터가 없어요.'); return; }
+  const season = (document.getElementById('season-input')?.value || '26SS').trim();
+  const st = document.getElementById('gs-conn-status');
+  st.textContent = `저장 중... (${prods.length}개 상품)`;
+  st.style.color = 'var(--text3)';
+  try {
+    const res = await fetch(gsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' }, // Apps Script CORS 우회
+      body: JSON.stringify({ action: 'upsert', season, prods })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    st.textContent = `✓ 저장 완료 — 신규 ${data.added}개 · 업데이트 ${data.updated}개`;
+    st.style.color = 'var(--green)';
+    // GS 패널 열기
+    const body = document.getElementById('gs-body');
+    if (body && body.style.display === 'none') toggleGsPanel();
+  } catch(e) {
+    st.textContent = '✗ 저장 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+  }
+}
+
+// ── RESET ──
+function resetAll(){
+  wb1=null;wb2=null;wb3=null;prods=[];masterMap={};sel=null;modsSet.clear();fSheet='전체';fQ='';
+  // GS 연동은 URL/연결 상태 유지 (gsUrl, gsConnected 초기화 안 함)
+  ['ok1','ok2'].forEach(id=>document.getElementById(id).textContent='');
+  ['dz1','dz2'].forEach(id=>document.getElementById(id).classList.remove('ok'));
+  ['f1','f2'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('runbtn').disabled=true;
+  document.getElementById('pg-wrap').style.display='none';
+  document.getElementById('pulse').classList.remove('live');
+  document.getElementById('status-txt').textContent='대기 중';
+  document.getElementById('sup').style.display='block';
+  document.getElementById('sedit').style.display='none';
+}
+</script>
+</body>
+</html>

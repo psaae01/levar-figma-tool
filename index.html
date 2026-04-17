@@ -737,7 +737,16 @@ function parseProd(){
 
         // 마스터 DB에서 기존 데이터 불러오기 (캐리오버 자동 인식)
         const masterRow=masterMap[code]||null;
-        const isCarryover=!!masterRow;
+        // 상품코드 연도 파싱으로 자동 감지
+        // L[연도][시즌]... 구조: A=2020,B=2021,C=2022,D=2023,E=2024,F=2025,G=2026
+        const YEAR_MAP={'A':2020,'B':2021,'C':2022,'D':2023,'E':2024,'F':2025,'G':2026};
+        const currentSeason=(document.getElementById('season-input')?.value||'26SS').trim();
+        const currentYearChar=currentSeason.replace(/\D/g,'').slice(0,2); // "26"
+        const currentYearFull=2000+parseInt(currentYearChar); // 2026
+        function getCodeYear(c){ return c&&c.length>=2?YEAR_MAP[c[1].toUpperCase()]||null:null; }
+        const codeYear=getCodeYear(code);
+        const isCodeCarryover=codeYear!==null&&codeYear<currentYearFull;
+        const isCarryover=!!masterRow||isCodeCarryover;
 
         // 모델: 기술서 우선, 없으면 마스터
         const finalModels = models.length>0 ? models : (masterRow?.models||[]);
@@ -761,8 +770,9 @@ function parseProd(){
           models:finalModels, desc:finalDesc, care2:finalCare2, prec:finalPrec, ship:finalShip,
           modified:false,
           carryover:isCarryover,
+          codeYear:codeYear||null,
           _origModels:isCarryover ? JSON.parse(JSON.stringify(finalModels)) : null,
-          masterKey:code, // 마스터 DB upsert용 키
+          masterKey:code,
         };
       }
       if(code) groups[key].codes.push(code);
@@ -866,7 +876,7 @@ function renderList(){
             <span class="tag">${p.color}</span>
             ${szCount?`<span class="tag">${szCount}사이즈</span>`:''}
             <span class="tag ${TC[p.matchedBy]||'mm'}">${MB[p.matchedBy]||'-'}</span>
-            ${p.carryover?'<span class="tag co">캐리오버</span>':''}
+            ${p.carryover?`<span class="tag co">캐리오버 ${p.codeYear?p.codeYear+'년':''}`.trimEnd()+'</span>':''}
             ${p.modified?'<span class="tag mod">수정됨</span>':''}
           </div>
         </div>
@@ -916,7 +926,9 @@ function renderDetail(){
           ${p.carryover?'✓ 캐리오버':'캐리오버'}
         </button>
       </div>
-      ${p.carryover?`<div style="font-size:11px;color:var(--amber);background:var(--amber-bg);padding:6px 10px;border-radius:6px;margin-top:8px">캐리오버 — 모델 정보가 기술서 기준으로 적용됩니다. Description·소재 등은 유지돼요.</div>`:''}
+      ${p.carryover?`<div style="font-size:11px;color:var(--amber);background:var(--amber-bg);padding:6px 10px;border-radius:6px;margin-top:8px">
+        ${p.codeYear?`${p.codeYear}년 상품 — `:''}캐리오버 · 모델 정보는 기술서 기준으로 적용, Description·소재 등은 유지돼요.
+      </div>`:''}
     </div>
     <div class="dc-body">
 

@@ -1159,30 +1159,7 @@ function toggleGsPanel() {
 }
 
 function showSetupGuide() {
-  alert(
-    '📋 Apps Script 설정 방법
-
-' +
-    '1. 구글 시트 새로 만들기
-' +
-    '2. 확장 프로그램 → Apps Script
-' +
-    '3. 기존 코드 전체 삭제 후 제공된 .gs 파일 내용 붙여넣기
-' +
-    '4. 저장 (Ctrl+S)
-' +
-    '5. 배포 → 새 배포 → 유형: 웹 앱
-' +
-    '6. 다음 사용자로 실행: 나
-' +
-    '7. 액세스 권한: 모든 사용자
-' +
-    '8. 배포 → URL 복사 후 여기에 붙여넣기
-
-' +
-    '⚠️ 팀원이 쓰려면 구글 시트를 공유하고
-같은 URL을 팀원에게 전달하면 돼요.'
-  );
+  alert('구글 시트 공개 CSV URL을 입력하세요.\n파일 → 공유 → 웹에 게시 → CSV 형식으로 게시 후 URL 복사');
 }
 
 async function testGsConnection() {
@@ -1229,8 +1206,7 @@ async function loadFromGs() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     // CSV 파싱
-    const lines = text.trim().split('
-');
+    const lines = text.trim().split('\n');
     if (lines.length < 2) { st.textContent = '마스터 DB가 비어있어요 (데이터 없음)'; return; }
     const hdr = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
     masterMap = {};

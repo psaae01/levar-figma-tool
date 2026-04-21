@@ -1143,13 +1143,13 @@ function dlXlsx(){
       'Making','Making2','Making3','Making4','Making5','Making6'];
     const rows=[hdrs];
     for(const p of ps){
-      const m1=p.models[0]?`${p.models[0].name}\nWears size ${p.models[0].wearSize}`:'';
-      const m2=p.models[1]?`${p.models[1].name}\nWears size ${p.models[1].wearSize}`:'';
+      const m2=p.models[0]?`${p.models[0].name}\nWears size ${p.models[0].wearSize}`:'';
+      const m4=p.models[1]?`${p.models[1].name}\nWears size ${p.models[1].wearSize}`:'';
       const szVals=sc.map(k=>(p.specs[k]||[]).join('\n'));
       const ship=p.ship||'미흡한 마감 처리(초크 자국, 실밥, ±1~2cm 사이즈 오차, 패턴 불규칙 등)는 교환 및 반품 사유에 해당하지 않습니다.';
       rows.push([
         p.nameEn, p.desc||'', p.fabric||'', p.color, p.size||'',
-        ...szVals, m1, m2, '', '',
+        ...szVals, '', m2, '', m4,
         p.care||'드라이클리닝', p.care2||'', p.prec||'',
         'Shipping', ship, '','','','','',''
       ]);

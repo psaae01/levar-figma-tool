@@ -292,9 +292,48 @@ select.fi option{background:var(--bg);color:var(--text)}
       <input class="search" placeholder="상품명 / 컬러 / 코드 검색..." oninput="doSearch(this.value)">
       <div id="tabs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
       <button class="btn primary" onclick="dlXlsx()">피그마용 엑셀 ↓</button>
+      <button class="btn" onclick="dlColorChip()" style="border-color:var(--blue);color:var(--blue)">컬러칩 엑셀 ↓</button>
       <button class="btn" onclick="dlMaster()" style="border-color:var(--amber);color:var(--amber)">마스터 엑셀 ↓</button>
       <button class="btn" id="gs-save-editor-btn" onclick="saveToGs()" style="border-color:var(--green);color:var(--green);display:none">구글시트 저장 ↑</button>
+      <button class="btn" onclick="toggleFigmaPanel()" style="border-color:#a259ff;color:#a259ff">피그마 레이어명 ✦</button>
       <button class="btn" onclick="resetAll()">처음으로</button>
+    </div>
+
+    <!-- FIGMA PANEL -->
+    <div id="figma-panel" style="display:none;margin-bottom:1rem;border:1px solid #a259ff33;border-radius:var(--radius);overflow:hidden">
+      <div style="padding:.75rem 1rem;background:var(--bg2);display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:14px">✦</span>
+          <span style="font-size:12px;font-weight:500">피그마 레이어명 자동 변경</span>
+          <span id="figma-badge" style="font-size:10px;padding:1px 7px;border-radius:8px;background:var(--bg3);color:var(--text3)">미연결</span>
+        </div>
+        <button onclick="toggleFigmaPanel()" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3)">✕</button>
+      </div>
+      <div style="padding:1rem;border-top:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:.75rem;line-height:1.6">
+          피그마 토큰과 파일 ID를 입력하면 상품 데이터 기준으로 레이어명을 자동 변경해요.<br>
+          <span style="color:var(--text3)">D = Description · P = Product Guide · O = 컬러칩+모델 · C = 컬러칩</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.75rem">
+          <input id="figma-token" class="fi" placeholder="피그마 Personal Access Token"
+            type="password"
+            style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace"
+            oninput="saveFigmaSettings()">
+          <input id="figma-file-id" class="fi" placeholder="파일 ID (URL에서 복사)"
+            style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;font-family:'DM Mono',monospace"
+            oninput="saveFigmaSettings()">
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:.75rem">
+          <button class="btn" onclick="testFigmaConnection()" style="font-size:12px">연결 테스트</button>
+          <button class="btn" id="figma-fetch-btn" onclick="fetchFigmaLayers()" disabled style="font-size:12px">레이어 불러오기</button>
+          <button class="btn" id="figma-rename-btn" onclick="renameFigmaLayers()" disabled style="font-size:12px;border-color:#a259ff;color:#a259ff">레이어명 자동 변경 →</button>
+        </div>
+        <div id="figma-status" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace"></div>
+        <div id="figma-preview" style="margin-top:.75rem;max-height:200px;overflow-y:auto;display:none">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.06em">변경 예정 레이어 미리보기</div>
+          <div id="figma-preview-list" style="font-size:11px;font-family:'DM Mono',monospace;display:flex;flex-direction:column;gap:3px"></div>
+        </div>
+      </div>
     </div>
 
     <!-- PANES -->
@@ -1138,18 +1177,32 @@ function dlXlsx(){
   for(const st of orderedTabs){
     const ps=groups[st];
     const sc=SCOLS[st]||[];
+
+    // 이 탭에서 최대 모델 수 계산 → 동적 헤더
+    let maxModels=0;
+    for(const p of ps) maxModels=Math.max(maxModels, p.models.length);
+    maxModels=Math.max(maxModels,1);
+
+    // Model 헤더: 홀수=FTP공백, 짝수=모델정보
+    const modelHdrs=[];
+    for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
+
     const hdrs=['Item','Description','Fabric','Color','Size1',...sc,
-      'Model1','Model2','Model3','Model4','Care','CareTip2','Precaution2','SP','Shipping',
+      ...modelHdrs,
+      'Care','CareTip2','Precaution2','SP','Shipping',
       'Making','Making2','Making3','Making4','Making5','Making6'];
     const rows=[hdrs];
     for(const p of ps){
-      const m2=p.models[0]?`${p.models[0].name}\nWears size ${p.models[0].wearSize}`:'';
-      const m4=p.models[1]?`${p.models[1].name}\nWears size ${p.models[1].wearSize}`:'';
+      const modelCells=[];
+      for(let i=0;i<maxModels;i++){
+        const m=p.models[i];
+        modelCells.push('', m?`${m.name}\nWears size ${m.wearSize}`:'');
+      }
       const szVals=sc.map(k=>(p.specs[k]||[]).join('\n'));
       const ship=p.ship||'미흡한 마감 처리(초크 자국, 실밥, ±1~2cm 사이즈 오차, 패턴 불규칙 등)는 교환 및 반품 사유에 해당하지 않습니다.';
       rows.push([
         p.nameEn, p.desc||'', p.fabric||'', p.color, p.size||'',
-        ...szVals, '', m2, '', m4,
+        ...szVals, ...modelCells,
         p.care||'드라이클리닝', p.care2||'', p.prec||'',
         'Shipping', ship, '','','','','',''
       ]);
@@ -1157,11 +1210,310 @@ function dlXlsx(){
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws['!cols']=[{wch:28},{wch:60},{wch:35},{wch:16},{wch:14},
       ...sc.map(()=>({wch:9})),
-      {wch:45},{wch:45},{wch:10},{wch:10},{wch:16},{wch:60},{wch:60},{wch:10},{wch:60},
+      ...Array(maxModels*2).fill(null).map((_,i)=>i%2===0?{wch:10}:{wch:45}),
+      {wch:16},{wch:60},{wch:60},{wch:10},{wch:60},
       ...Array(6).fill({wch:5})];
     XLSX.utils.book_append_sheet(wbOut,ws,st);
   } // end for orderedTabs
   XLSX.writeFile(wbOut,'LEVAR_피그마_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ── FIGMA 연동 ──
+let figmaConnected = false;
+let figmaLayers = []; // {id, name, type}
+
+window.addEventListener('load', () => {
+  const t = localStorage.getItem('levar_figma_token');
+  const f = localStorage.getItem('levar_figma_file');
+  if (t) document.getElementById('figma-token').value = t;
+  if (f) document.getElementById('figma-file-id').value = f;
+});
+
+function saveFigmaSettings() {
+  const t = document.getElementById('figma-token').value;
+  const f = document.getElementById('figma-file-id').value;
+  localStorage.setItem('levar_figma_token', t);
+  localStorage.setItem('levar_figma_file', f);
+}
+
+function toggleFigmaPanel() {
+  const p = document.getElementById('figma-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+async function testFigmaConnection() {
+  const token = document.getElementById('figma-token').value.trim();
+  const fileId = document.getElementById('figma-file-id').value.trim();
+  const st = document.getElementById('figma-status');
+  if (!token || !fileId) { st.textContent = '토큰과 파일 ID를 모두 입력해주세요.'; return; }
+  st.textContent = '연결 테스트 중...';
+  st.style.color = 'var(--text3)';
+  try {
+    const res = await fetch(`https://api.figma.com/v1/files/${fileId}?depth=1`, {
+      headers: { 'X-Figma-Token': token }
+    });
+    const data = await res.json();
+    if (data.name) {
+      figmaConnected = true;
+      st.textContent = `✓ 연결 성공 — "${data.name}"`;
+      st.style.color = 'var(--green)';
+      document.getElementById('figma-badge').textContent = '연결됨';
+      document.getElementById('figma-badge').style.cssText = 'font-size:10px;padding:1px 7px;border-radius:8px;background:var(--green-t);color:var(--green)';
+      document.getElementById('figma-fetch-btn').disabled = false;
+    } else {
+      throw new Error(data.err || '파일을 찾을 수 없어요');
+    }
+  } catch(e) {
+    st.textContent = '✗ 연결 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+    figmaConnected = false;
+  }
+}
+
+async function fetchFigmaLayers() {
+  const token = document.getElementById('figma-token').value.trim();
+  const fileId = document.getElementById('figma-file-id').value.trim();
+  const st = document.getElementById('figma-status');
+  st.textContent = '레이어 구조 불러오는 중...';
+  st.style.color = 'var(--text3)';
+  try {
+    const res = await fetch(`https://api.figma.com/v1/files/${fileId}?depth=4`, {
+      headers: { 'X-Figma-Token': token }
+    });
+    const data = await res.json();
+    // 모든 프레임/그룹 레이어 수집
+    figmaLayers = [];
+    function walk(node) {
+      if (!node) return;
+      if (node.type === 'FRAME' || node.type === 'GROUP' || node.type === 'COMPONENT') {
+        figmaLayers.push({ id: node.id, name: node.name, type: node.type });
+      }
+      if (node.children) node.children.forEach(walk);
+    }
+    walk(data.document);
+    st.textContent = `✓ ${figmaLayers.length}개 레이어 불러옴`;
+    st.style.color = 'var(--green)';
+    document.getElementById('figma-rename-btn').disabled = false;
+    buildFigmaPreview();
+  } catch(e) {
+    st.textContent = '✗ 불러오기 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+  }
+}
+
+// 레이어명 규칙:
+// D  → 상품명 / D
+// P  → 상품명 / 컬러명 / P
+// O  → 상품명 / 컬러명 / O
+// C  → 상품명 / C
+function buildRenameMap() {
+  const map = []; // {id, oldName, newName}
+  const suffix_D  = /^D$/;
+  const suffix_P  = /^P$/;
+  const suffix_O  = /^O$/;
+  const suffix_C  = /^C$/;
+
+  // 상품명 목록 & 컬러 목록
+  const itemNames  = [...new Set(prods.map(p => p.nameEn))];
+  const colorMap   = {}; // nameEn → [color, ...]
+  for (const p of prods) {
+    if (!colorMap[p.nameEn]) colorMap[p.nameEn] = [];
+    colorMap[p.nameEn].push(p.color);
+  }
+
+  for (const layer of figmaLayers) {
+    const n = layer.name.trim();
+
+    // 이미 올바른 형식이면 스킵
+    if (n.includes(' / ')) continue;
+
+    if (suffix_D.test(n)) {
+      // D 레이어 → 가장 가까운 상품명 매칭 불가 → 그냥 D 유지하되 미리보기에 표시
+      map.push({ id: layer.id, oldName: n, newName: null, note: '상품명 필요' });
+    }
+    // 이미 "상품명 / D" 형식 레이어는 스킵됨 (includes ' / ')
+  }
+
+  // prods 기반으로 예상 레이어명 목록 생성
+  const expected = [];
+  for (const p of prods) {
+    expected.push(`${p.nameEn} / D`);
+    expected.push(`${p.nameEn} / ${p.color} / P`);
+    expected.push(`${p.nameEn} / ${p.color} / O`);
+    expected.push(`${p.nameEn} / C`);
+  }
+
+  // figmaLayers에서 매칭되는 것 찾기
+  const renameMap = [];
+  for (const layer of figmaLayers) {
+    const n = layer.name.trim();
+    // 단순 suffix만 있는 레이어 → 상품 데이터와 매칭 시도
+    // 순서 기반: D레이어 순서 = prods 순서
+    if (/^[DPOC]$/.test(n)) {
+      renameMap.push({ id: layer.id, oldName: n });
+    }
+  }
+  return renameMap;
+}
+
+function buildFigmaPreview() {
+  const preview = document.getElementById('figma-preview');
+  const list = document.getElementById('figma-preview-list');
+  preview.style.display = 'block';
+
+  // 현재 레이어 중 단순 D/P/O/C인 것들 보여주기
+  const targets = figmaLayers.filter(l => /^[DPOC]$/.test(l.name.trim()));
+  if (!targets.length) {
+    list.innerHTML = '<div style="color:var(--text3)">변경 대상 레이어 없음 (이미 올바른 형식이거나 레이어가 없어요)</div>';
+    return;
+  }
+
+  // prods 기반 예상 이름 순서대로 매핑
+  const suffixProds = { D: prods, P: prods, O: prods, C: prods };
+  const counters = { D: 0, P: 0, O: 0, C: 0 };
+
+  list.innerHTML = targets.map(layer => {
+    const s = layer.name.trim();
+    const idx = counters[s] || 0;
+    const p = prods[idx];
+    let newName = '?';
+    if (p) {
+      if (s === 'D') newName = `${p.nameEn} / D`;
+      else if (s === 'P') newName = `${p.nameEn} / ${p.color} / P`;
+      else if (s === 'O') newName = `${p.nameEn} / ${p.color} / O`;
+      else if (s === 'C') newName = `${p.nameEn} / C`;
+    }
+    counters[s] = (counters[s] || 0) + 1;
+    return `<div style="display:flex;gap:8px;align-items:center;padding:3px 6px;border-radius:4px;background:var(--bg2)">
+      <span style="color:var(--text3);min-width:20px">${s}</span>
+      <span style="color:var(--text3)">→</span>
+      <span style="color:var(--text)">${newName}</span>
+    </div>`;
+  }).join('');
+}
+
+async function renameFigmaLayers() {
+  const token = document.getElementById('figma-token').value.trim();
+  const fileId = document.getElementById('figma-file-id').value.trim();
+  const st = document.getElementById('figma-status');
+
+  // 단순 D/P/O/C 레이어를 prods 순서로 매핑
+  const targets = figmaLayers.filter(l => /^[DPOC]$/.test(l.name.trim()));
+  if (!targets.length) { st.textContent = '변경할 레이어가 없어요.'; return; }
+  if (!prods.length) { st.textContent = '상품 데이터를 먼저 변환해주세요.'; return; }
+
+  const counters = { D: 0, P: 0, O: 0, C: 0 };
+  const changes = [];
+  for (const layer of targets) {
+    const s = layer.name.trim();
+    const idx = counters[s] || 0;
+    const p = prods[idx];
+    if (!p) continue;
+    let newName = '';
+    if (s === 'D') newName = `${p.nameEn} / D`;
+    else if (s === 'P') newName = `${p.nameEn} / ${p.color} / P`;
+    else if (s === 'O') newName = `${p.nameEn} / ${p.color} / O`;
+    else if (s === 'C') newName = `${p.nameEn} / C`;
+    if (newName) changes.push({ id: layer.id, name: newName });
+    counters[s] = (counters[s] || 0) + 1;
+  }
+
+  if (!changes.length) { st.textContent = '매핑할 상품이 없어요.'; return; }
+
+  st.textContent = `${changes.length}개 레이어 변경 중...`;
+  st.style.color = 'var(--text3)';
+
+  try {
+    const res = await fetch(`https://api.figma.com/v1/files/${fileId}/nodes`, {
+      method: 'PUT',
+      headers: {
+        'X-Figma-Token': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ nodes: Object.fromEntries(changes.map(c => [c.id, { name: c.name }])) })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      st.textContent = `✓ ${changes.length}개 레이어명 변경 완료!`;
+      st.style.color = 'var(--green)';
+    } else {
+      throw new Error(data.err || JSON.stringify(data));
+    }
+  } catch(e) {
+    st.textContent = '✗ 변경 실패: ' + e.message;
+    st.style.color = 'var(--red)';
+  }
+}
+
+// ── EXPORT 컬러칩 ──
+function dlColorChip(){
+  if(!prods.length){alert('상품 데이터가 없어요.');return;}
+  const wbOut=XLSX.utils.book_new();
+
+  const TAB_ORDER=['outer7','outer6','outer5','top7','top6','top5','top4',
+    'sleeveless','pants','denim','skirt','dress7','dress6','dress6b','dress5',
+    'shoes','bag','acc','cap'];
+  const groups={};
+  for(const p of prods){if(!groups[p.sheetType])groups[p.sheetType]=[];groups[p.sheetType].push(p);}
+  const orderedTabs=TAB_ORDER.filter(t=>groups[t]&&groups[t].length>0);
+
+  for(const st of orderedTabs){
+    const ps=groups[st];
+
+    // ── 상품명 기준으로 같은 아이템의 전체 컬러 묶기 (FTP 슬롯용) ──
+    const itemColorMap={};  // nameEn → [color, color, ...]  (전체 컬러 목록)
+    const itemOrder=[];
+    for(const p of ps){
+      if(!itemColorMap[p.nameEn]){itemColorMap[p.nameEn]=[];itemOrder.push(p.nameEn);}
+      itemColorMap[p.nameEn].push(p.color);
+    }
+
+    // ── 최대 컬러 수 / 최대 모델 수 계산 ──
+    let maxColors=0;
+    let maxModels=0;
+    for(const p of ps){
+      maxColors=Math.max(maxColors, itemColorMap[p.nameEn].length);
+      maxModels=Math.max(maxModels, p.models.length);
+    }
+    maxColors=Math.max(maxColors,1);
+    maxModels=Math.max(maxModels,1);
+
+    // ── 헤더 동적 생성 ──
+    const colorHdrs=[];
+    for(let i=1;i<=maxColors;i++) colorHdrs.push('ColorFTP'+i,'Color'+i);
+    const modelHdrs=[];
+    for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
+    const hdrs=['Item','Color',...colorHdrs,...modelHdrs];
+    const rows=[hdrs];
+
+    // ── 컬러별 한 행씩 ──
+    for(const p of ps){
+      // 이 상품의 전체 컬러 FTP 슬롯 (컬러명만, FTP주소는 공백)
+      const allColors=itemColorMap[p.nameEn];
+      const colorCells=[];
+      for(let i=0;i<maxColors;i++){
+        colorCells.push('', allColors[i]||''); // FTP공백, 컬러명
+      }
+
+      // 이 컬러를 착용한 모델
+      const modelCells=[];
+      for(let i=0;i<maxModels;i++){
+        const m=p.models[i];
+        modelCells.push('', m?`${m.name}\nWears size ${m.wearSize}`:'');
+      }
+
+      rows.push([p.nameEn, p.color, ...colorCells, ...modelCells]);
+    }
+
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const colWidths=[{wch:30},{wch:20}];
+    for(let i=0;i<maxColors;i++) colWidths.push({wch:60},{wch:20});
+    for(let i=0;i<maxModels;i++) colWidths.push({wch:10},{wch:45});
+    ws['!cols']=colWidths;
+    XLSX.utils.book_append_sheet(wbOut,ws,st);
+  }
+
+  XLSX.writeFile(wbOut,'LEVAR_컬러칩_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
 // ── GOOGLE SHEETS 연동 ──

@@ -710,6 +710,43 @@ function parseProd(){
     const getAlt=(row,...names)=>{for(const n of names){const v=get(row,n);if(v)return v;}return '';};
     // 컬럼명 변형 대응 (25SS는 '상품명 영문'이 다른 위치에 있을 수 있음)
 
+    // === 모델 / 모델 착장 사이즈 컬럼 자동 탐지 (시트당 1회) ===
+    // 같은 헤더가 여러 개 있는 경우(예: '착용 모델' x2)에 대비하여
+    // "데이터가 가장 많이 채워진 컬럼"을 선택한다.
+    const _normHdr=h=>String(h||'').toLowerCase().replace(/\s+/g,'');
+    const findAllHdr=needles=>{
+      const out=[];
+      for(let i=0;i<hdr.length;i++){
+        const h=_normHdr(hdr[i]);
+        if(!h) continue;
+        if(needles.some(n=>h.includes(n))) out.push(i);
+      }
+      return out;
+    };
+    const pickFilled=(cands,exclude=-1)=>{
+      let best=-1, bestCnt=-1;
+      for(const i of cands){
+        if(i===exclude) continue;
+        let cnt=0;
+        for(let r=hi+1;r<raw.length;r++){
+          const v=raw[r] && raw[r][i];
+          if(v!==undefined && v!==null && String(v).trim()!=='') cnt++;
+        }
+        if(cnt>bestCnt){ bestCnt=cnt; best=i; }
+      }
+      return best;
+    };
+    const _szCands = findAllHdr(['모델착장','착장사이즈','착장','wears']);
+    const mSzColIdx = pickFilled(_szCands);
+    // '모델'은 사이즈 컬럼과도 매치되니 사이즈 컬럼 제외하고 검색
+    let _mCands = findAllHdr(['착용모델','모델명']);
+    if(_mCands.length===0) _mCands = findAllHdr(['모델','model']).filter(i=>i!==mSzColIdx);
+    const mColIdx = pickFilled(_mCands, mSzColIdx);
+    if(typeof console!=='undefined'){
+      console.log('[모델컬럼 탐지]', sn, '→ 모델:', mColIdx, hdr[mColIdx]||'(없음)',
+        '/ 착장사이즈:', mSzColIdx, hdr[mSzColIdx]||'(없음)');
+    }
+
     // 시트명을 드롭 태그로 변환
     let dropTag='drop?';
     if(sn.includes('drop1')) dropTag='drop1';
@@ -735,13 +772,14 @@ function parseProd(){
 
       const key=norm(nameEn||code)+'||'+norm(color);
       if(!groups[key]){
-        // 모델 파싱 - 컬럼명 두 가지 모두 시도
-        const mStr=get(row,'착용 모델')||get(row,'착용 모델');
-        const mSz=get(row,'모델 착장 사이즈');
+        // 모델 파싱 - 사전 계산된 컬럼 인덱스 사용 (시트당 1회 탐지)
+        const mStr=mColIdx  >=0 ? String(row[mColIdx]  ||'').trim() : '';
+        const mSz =mSzColIdx>=0 ? String(row[mSzColIdx]||'').trim() : '';
         const models=[];
         if(mStr){
+          const szLines=mSz.split('\n').map(s=>s.trim());
           mStr.split('\n').map(s=>s.trim()).filter(Boolean).forEach((m,i)=>{
-            models.push({name:m, wearSize:(mSz.split('\n')[i]||'').trim()});
+            models.push({name:m, wearSize:(szLines[i]||szLines[0]||'').trim()});
           });
         }
 

@@ -523,18 +523,38 @@ function loadFile(n, inp){
 }
 
 // ── DRAG & DROP ──
-document.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('drop-indicator').classList.add('show')});
-document.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.getElementById('drop-indicator').classList.remove('show')});
+let _dragDepth=0;
+document.addEventListener('dragenter',e=>{
+  if(!e.dataTransfer||![...e.dataTransfer.types].includes('Files'))return;
+  _dragDepth++;
+  document.getElementById('drop-indicator').classList.add('show');
+});
+document.addEventListener('dragover',e=>{e.preventDefault();});
+document.addEventListener('dragleave',e=>{
+  _dragDepth--;
+  if(_dragDepth<=0){
+    _dragDepth=0;
+    document.getElementById('drop-indicator').classList.remove('show');
+  }
+});
 document.addEventListener('drop',e=>{
+  _dragDepth=0;
   e.preventDefault();
   document.getElementById('drop-indicator').classList.remove('show');
   const files=[...e.dataTransfer.files].filter(f=>f.name.endsWith('.xlsx')||f.name.endsWith('.xls'));
   if(files.length===0)return;
-  // 이름으로 자동 구분: 사이즈 키워드 있으면 f2
+  // 파일명으로 3종 자동 구분
+  //  · 마스터 DB  → 슬롯3 (MASTER / 마스터 / DB)
+  //  · 사이즈기술서 → 슬롯2 (사이즈 / size)
+  //  · 그 외(상품기술서) → 슬롯1
   files.forEach(f=>{
-    const isSize=/사이즈|size/i.test(f.name);
+    const nm=f.name;
     const fakeInp={files:[f]};
-    loadFile(isSize?2:1, fakeInp);
+    let slot;
+    if(/master|마스터|_db|db\.xls/i.test(nm))      slot=3;
+    else if(/사이즈|size/i.test(nm))                slot=2;
+    else                                            slot=1;
+    loadFile(slot, fakeInp);
   });
 });
 
@@ -587,6 +607,7 @@ function parseMaster(){
       })(),
       specsJSON: String(row[gi('사이즈JSON')]||'{}'),
       carryover: String(row[gi('캐리오버')]||'').trim()==='Y',
+      comment:  String(row[gi('코멘트')]||'').trim(),
       lastUpdated: String(row[gi('최종수정일')]||'').trim(),
     };
   }
@@ -742,9 +763,13 @@ function parseProd(){
     let _mCands = findAllHdr(['착용모델','모델명']);
     if(_mCands.length===0) _mCands = findAllHdr(['모델','model']).filter(i=>i!==mSzColIdx);
     const mColIdx = pickFilled(_mCands, mSzColIdx);
+    // 코멘트(촬영용 샘플 / 총장 추가 등) 컬럼 탐지
+    const _cmtCands = findAllHdr(['코멘트','comment','비고','remark']);
+    const cmtColIdx = pickFilled(_cmtCands, -1);
     if(typeof console!=='undefined'){
       console.log('[모델컬럼 탐지]', sn, '→ 모델:', mColIdx, hdr[mColIdx]||'(없음)',
-        '/ 착장사이즈:', mSzColIdx, hdr[mSzColIdx]||'(없음)');
+        '/ 착장사이즈:', mSzColIdx, hdr[mSzColIdx]||'(없음)',
+        '/ 코멘트:', cmtColIdx, hdr[cmtColIdx]||'(없음)');
     }
 
     // 시트명을 드롭 태그로 변환
@@ -775,13 +800,42 @@ function parseProd(){
         // 모델 파싱 - 사전 계산된 컬럼 인덱스 사용 (시트당 1회 탐지)
         const mStr=mColIdx  >=0 ? String(row[mColIdx]  ||'').trim() : '';
         const mSz =mSzColIdx>=0 ? String(row[mSzColIdx]||'').trim() : '';
+        const cmtStr=cmtColIdx>=0 ? String(row[cmtColIdx]||'').trim() : '';
+        // 코멘트 → 고정 문장으로 정규화.
+        // 코멘트에 '총장 N cm' 패턴이 있으면 그 숫자와 착장사이즈로 표준 문장 생성.
+        // 패턴이 없으면 원문 그대로(빈 값이면 빈 값) 둔다.
+        const normCmt=(raw,wearSz)=>{
+          const t=String(raw||'').replace(/\s*\n\s*/g,' ').trim();
+          if(!t) return '';
+          const mm=t.match(/총장\s*([0-9]+(?:\.[0-9]+)?)\s*cm/i);
+          if(!mm) return t; // 총장 패턴 없으면 원문 유지
+          const cm=mm[1];
+          const sz=String(wearSz||'').trim();
+          const szPart=sz?sz+' size ':'';
+          return `모델은 ${szPart}총장 ${cm}cm 추가된 촬영용 샘플을 착용했습니다.`;
+        };
         const models=[];
         if(mStr){
           const szLines=mSz.split('\n').map(s=>s.trim());
-          mStr.split('\n').map(s=>s.trim()).filter(Boolean).forEach((m,i)=>{
-            models.push({name:m, wearSize:(szLines[i]||szLines[0]||'').trim()});
+          const nameLines=mStr.split('\n').map(s=>s.trim()).filter(Boolean);
+          const cmtLines=cmtStr.split('\n').map(s=>s.trim());
+          // 모델이 1명이면 코멘트 전체(여러 줄 가능)를 그 모델에 귀속.
+          // 모델이 여러 명이면 줄 단위로 모델↔코멘트 매칭.
+          const single = nameLines.length<=1;
+          const joinedCmt = cmtStr.replace(/\s*\n\s*/g,' ').trim();
+          nameLines.forEach((m,i)=>{
+            const wsz=(szLines[i]||szLines[0]||'').trim();
+            const rawC = single ? joinedCmt : (cmtLines[i]||'').trim();
+            models.push({
+              name:m,
+              wearSize:wsz,
+              comment: normCmt(rawC, wsz)
+            });
           });
         }
+        // 상품 단위 코멘트 (착장사이즈는 첫 모델 기준)
+        const _firstSz = models[0]?.wearSize || mSz.split('\n')[0] || '';
+        const itemComment = normCmt(cmtStr, _firstSz);
 
         // Description 분리
         const descRaw=get(row,'Description').replace(/^\s*\\n/,'').replace(/^\\n/,'');
@@ -818,6 +872,7 @@ function parseProd(){
 
         // 모델: 기술서 우선, 없으면 마스터
         const finalModels = models.length>0 ? models : (masterRow?.models||[]);
+        const finalComment = itemComment || masterRow?.comment || '';
 
         // 텍스트: 기술서 우선, 없으면 마스터에서 상속
         const finalDesc  = desc   || masterRow?.desc  || '';
@@ -837,6 +892,7 @@ function parseProd(){
           fabric:finalFabric, country:get(row,'제조국'),
           care:finalCare,
           models:finalModels, desc:finalDesc, care2:finalCare2, prec:finalPrec, ship:finalShip,
+          comment:finalComment,
           modified:false,
           carryover:isCarryover,
           codeYear:codeYear||null,
@@ -1097,7 +1153,7 @@ function dlMaster(){
   // MASTER 시트 헤더
   const HDR=['상품코드','시즌','카테고리','탭','상품명EN','상품명KR','컬러','소재',
     '세탁방법','Description','CareTip','Precaution','Shipping',
-    '모델JSON','사이즈JSON','캐리오버','최종수정일'];
+    '모델JSON','사이즈JSON','캐리오버','코멘트','최종수정일'];
 
   // 기존 마스터 데이터 (wb3에서 로드한 것) + 이번 시즌 upsert
   const masterRows={...masterMap}; // 코드→데이터 맵
@@ -1115,6 +1171,7 @@ function dlMaster(){
         models:p.models,
         specsJSON:JSON.stringify(p.specs||{}),
         carryover:p.carryover?'Y':'N',
+        comment:p.comment||'',
         lastUpdated:today,
       };
     }
@@ -1129,7 +1186,7 @@ function dlMaster(){
       d.care||'', d.desc||'', d.care2||'', d.prec||'', d.ship||'',
       JSON.stringify(d.models||[]),
       typeof d.specsJSON==='string'?d.specsJSON:JSON.stringify(d.specsJSON||{}),
-      d.carryover||'N', d.lastUpdated||today,
+      d.carryover||'N', d.comment||'', d.lastUpdated||today,
     ]);
   }
   const wsMaster=XLSX.utils.aoa_to_sheet(masterData);
@@ -1188,7 +1245,7 @@ function dlXlsx(){
     for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
 
     const hdrs=['Item','Description','Fabric','Color','Size1',...sc,
-      ...modelHdrs,
+      ...modelHdrs,'Comments',
       'Care','CareTip2','Precaution2','SP','Shipping',
       'Making','Making2','Making3','Making4','Making5','Making6'];
     const rows=[hdrs];
@@ -1200,9 +1257,15 @@ function dlXlsx(){
       }
       const szVals=sc.map(k=>(p.specs[k]||[]).join('\n'));
       const ship=p.ship||'미흡한 마감 처리(초크 자국, 실밥, ±1~2cm 사이즈 오차, 패턴 불규칙 등)는 교환 및 반품 사유에 해당하지 않습니다.';
+      // 코멘트: 상품 단위 우선, 없으면 모델별 코멘트 모아서 (중복 제거)
+      let cmtCell=(p.comment||'').trim();
+      if(!cmtCell){
+        const ms=(p.models||[]).map(m=>(m.comment||'').trim()).filter(Boolean);
+        cmtCell=[...new Set(ms)].join(' / ');
+      }
       rows.push([
         p.nameEn, p.desc||'', p.fabric||'', p.color, p.size||'',
-        ...szVals, ...modelCells,
+        ...szVals, ...modelCells, cmtCell,
         p.care||'드라이클리닝', p.care2||'', p.prec||'',
         'Shipping', ship, '','','','','',''
       ]);
@@ -1211,6 +1274,7 @@ function dlXlsx(){
     ws['!cols']=[{wch:28},{wch:60},{wch:35},{wch:16},{wch:14},
       ...sc.map(()=>({wch:9})),
       ...Array(maxModels*2).fill(null).map((_,i)=>i%2===0?{wch:10}:{wch:45}),
+      {wch:55},
       {wch:16},{wch:60},{wch:60},{wch:10},{wch:60},
       ...Array(6).fill({wch:5})];
     XLSX.utils.book_append_sheet(wbOut,ws,st);
@@ -1219,6 +1283,18 @@ function dlXlsx(){
 }
 
 // ── EXPORT 컬러칩 ──
+// 모델 이미지 FTP 베이스 URL (주소 바뀌면 이 줄만 수정)
+const MODEL_IMG_BASE='https://levar1.cafe24.com/product/model/';
+// 모델명 → 이미지 URL
+//  규칙: 공백 제거 + 소수점(.) 제거  (FTP 파일명 규칙과 일치)
+//  예) "Arina Khitrovo 176cm" → ".../ArinaKhitrovo176cm.jpg"
+//      "Kaitlyn 170.5cm"      → ".../Kaitlyn1705cm.jpg"
+function modelImgUrl(name){
+  const n=String(name||'').trim();
+  if(!n) return '';
+  const fileName=n.replace(/\s+/g,'').replace(/\./g,'')+'.jpg';
+  return MODEL_IMG_BASE+fileName;
+}
 function dlColorChip(){
   if(!prods.length){alert('상품 데이터가 없어요.');return;}
   const wbOut=XLSX.utils.book_new();
@@ -1256,7 +1332,7 @@ function dlColorChip(){
     for(let i=1;i<=maxColors;i++) colorHdrs.push('ColorFTP'+i,'Color'+i);
     const modelHdrs=[];
     for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
-    const hdrs=['Item','Color',...colorHdrs,...modelHdrs];
+    const hdrs=['Item','Color',...colorHdrs,...modelHdrs,'코멘트'];
     const rows=[hdrs];
 
     // ── 컬러별 한 행씩 ──
@@ -1268,22 +1344,77 @@ function dlColorChip(){
         colorCells.push('', allColors[i]||''); // FTP공백, 컬러명
       }
 
-      // 이 컬러를 착용한 모델
+      // 이 컬러를 착용한 모델 (코멘트는 별도 컬럼으로 분리)
+      // 홀수칸=FTP 이미지 URL, 짝수칸=모델 정보
       const modelCells=[];
       for(let i=0;i<maxModels;i++){
         const m=p.models[i];
-        modelCells.push('', m?`${m.name}\nWears size ${m.wearSize}`:'');
+        modelCells.push(
+          m?modelImgUrl(m.name):'',
+          m?`${m.name}\nWears size ${m.wearSize}`:''
+        );
       }
 
-      rows.push([p.nameEn, p.color, ...colorCells, ...modelCells]);
+      // 코멘트: 상품 단위 코멘트 우선, 없으면 모델별 코멘트 모아서
+      let cmtCell=(p.comment||'').trim();
+      if(!cmtCell){
+        const ms=(p.models||[]).map(m=>(m.comment||'').trim()).filter(Boolean);
+        cmtCell=[...new Set(ms)].join(' / ');
+      }
+
+      rows.push([p.nameEn, p.color, ...colorCells, ...modelCells, cmtCell]);
     }
 
     const ws=XLSX.utils.aoa_to_sheet(rows);
+
+    // ── 모델 FTP URL 셀을 하이퍼링크로 변환 ──
+    // 컬럼 배치: [Item, Color, (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
+    // 모델 슬롯 시작 컬럼 = 2 + maxColors*2,  각 모델의 홀수칸(=URL)은 +0, 짝수칸(정보)은 +1
+    const modelStartCol = 2 + maxColors*2;
+    for(let r=1; r<rows.length; r++){          // r=0 은 헤더
+      for(let mi=0; mi<maxModels; mi++){
+        const urlCol = modelStartCol + mi*2;   // FTP URL 칸
+        const val = rows[r][urlCol];
+        if(typeof val==='string' && /^https?:\/\//i.test(val)){
+          const addr = XLSX.utils.encode_cell({r:r, c:urlCol});
+          if(ws[addr]){
+            ws[addr].l = { Target: val, Tooltip: val };
+          }
+        }
+      }
+    }
+
     const colWidths=[{wch:30},{wch:20}];
     for(let i=0;i<maxColors;i++) colWidths.push({wch:60},{wch:20});
     for(let i=0;i<maxModels;i++) colWidths.push({wch:10},{wch:45});
+    colWidths.push({wch:55}); // 코멘트
     ws['!cols']=colWidths;
     XLSX.utils.book_append_sheet(wbOut,ws,st);
+  }
+
+  // ── 코멘트(촬영용 샘플 / 총장 추가 등) 있는 아이템만 별도 시트 ──
+  const cmtRows=[['시즌','상품코드','상품명(EN)','컬러','착용 모델','착장 사이즈','코멘트']];
+  for(const p of prods){
+    const pc=(p.comment||'').trim();
+    // 상품 단위 코멘트 또는 모델별 코멘트가 하나라도 있으면 포함
+    const modelCmts=(p.models||[]).filter(m=>(m.comment||'').trim());
+    if(!pc && modelCmts.length===0) continue;
+    if((p.models||[]).length>0){
+      for(const m of p.models){
+        const mc=(m.comment||'').trim()||pc;
+        if(!mc) continue;
+        cmtRows.push([p.season||'', p.firstCode||'', p.nameEn||'', p.color||'',
+          m.name||'', m.wearSize||'', mc]);
+      }
+    }else{
+      cmtRows.push([p.season||'', p.firstCode||'', p.nameEn||'', p.color||'',
+        '', '', pc]);
+    }
+  }
+  if(cmtRows.length>1){
+    const cmtWs=XLSX.utils.aoa_to_sheet(cmtRows);
+    cmtWs['!cols']=[{wch:10},{wch:16},{wch:30},{wch:16},{wch:22},{wch:12},{wch:55}];
+    XLSX.utils.book_append_sheet(wbOut,cmtWs,'코멘트');
   }
 
   XLSX.writeFile(wbOut,'LEVAR_컬러칩_'+new Date().toISOString().slice(0,10)+'.xlsx');
@@ -1409,6 +1540,7 @@ async function loadFromGs() {
         models: (() => { try { return JSON.parse(obj['모델JSON']||'[]'); } catch(e){ return []; } })(),
         specsJSON: obj['사이즈JSON']||'{}',
         carryover: obj['캐리오버'] === 'Y',
+        comment: obj['코멘트']||'',
         lastUpdated: obj['최종수정일'],
       };
       count++;

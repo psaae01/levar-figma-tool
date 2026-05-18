@@ -1295,6 +1295,18 @@ function modelImgUrl(name){
   const fileName=n.replace(/\s+/g,'').replace(/\./g,'')+'.jpg';
   return MODEL_IMG_BASE+fileName;
 }
+// 컬러 이미지 베이스 URL (주소 바뀌면 이 줄만 수정)
+const COLOR_IMG_BASE='https://levar1.cafe24.com/Colorways/';
+// 상품명 + 컬러명 → 컬러 이미지 URL
+//  규칙: 각각 공백·소수점 제거 후 "상품명-컬러명.jpg"
+//  예) ("Light Washed Stripe Pants","Blue Stripe")
+//        → ".../LightWashedStripePants-BlueStripe.jpg"
+function colorImgUrl(itemName, colorName){
+  const it=String(itemName||'').trim().replace(/\s+/g,'').replace(/\./g,'');
+  const cl=String(colorName||'').trim().replace(/\s+/g,'').replace(/\./g,'');
+  if(!it||!cl) return '';
+  return COLOR_IMG_BASE+it+'-'+cl+'.jpg';
+}
 function dlColorChip(){
   if(!prods.length){alert('상품 데이터가 없어요.');return;}
   const wbOut=XLSX.utils.book_new();
@@ -1337,11 +1349,16 @@ function dlColorChip(){
 
     // ── 컬러별 한 행씩 ──
     for(const p of ps){
-      // 이 상품의 전체 컬러 FTP 슬롯 (컬러명만, FTP주소는 공백)
+      // 이 상품의 전체 컬러 슬롯
+      //  홀수칸(ColorFTP) = 그 컬러의 이미지 URL, 짝수칸 = 컬러명
       const allColors=itemColorMap[p.nameEn];
       const colorCells=[];
       for(let i=0;i<maxColors;i++){
-        colorCells.push('', allColors[i]||''); // FTP공백, 컬러명
+        const cName=allColors[i]||'';
+        colorCells.push(
+          cName?colorImgUrl(p.nameEn, cName):'',
+          cName
+        );
       }
 
       // 이 컬러를 착용한 모델 (코멘트는 별도 컬럼으로 분리)
@@ -1367,8 +1384,23 @@ function dlColorChip(){
 
     const ws=XLSX.utils.aoa_to_sheet(rows);
 
+    // ── 컬러 ColorFTP URL 셀을 하이퍼링크로 변환 ──
+    // 컬럼 배치: [Item(0), Color(1), (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
+    // 컬러 슬롯 시작 = 컬럼 2,  각 컬러의 ColorFTP(URL)칸은 2 + ci*2
+    for(let r=1; r<rows.length; r++){
+      for(let ci=0; ci<maxColors; ci++){
+        const urlCol = 2 + ci*2;
+        const val = rows[r][urlCol];
+        if(typeof val==='string' && /^https?:\/\//i.test(val)){
+          const addr = XLSX.utils.encode_cell({r:r, c:urlCol});
+          if(ws[addr]){
+            ws[addr].l = { Target: val, Tooltip: val };
+          }
+        }
+      }
+    }
+
     // ── 모델 FTP URL 셀을 하이퍼링크로 변환 ──
-    // 컬럼 배치: [Item, Color, (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
     // 모델 슬롯 시작 컬럼 = 2 + maxColors*2,  각 모델의 홀수칸(=URL)은 +0, 짝수칸(정보)은 +1
     const modelStartCol = 2 + maxColors*2;
     for(let r=1; r<rows.length; r++){          // r=0 은 헤더

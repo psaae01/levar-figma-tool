@@ -1465,23 +1465,24 @@ function dlModelChip(){
   let totalRows=0;
   for(const st of orderedTabs){
     const ps=groups[st];
-    const rows=[['Item','Color','Model','착장 사이즈','ModelFTP','코멘트']];
+    const rows=[['Item','Color','Model','ModelFTP','코멘트']];
 
     for(const p of ps){
       const models=p.models||[];
       if(models.length===0){
         // 모델 정보가 없는 컬러도 한 줄은 남겨 어떤 컬러가 모델 미정인지 보이게
-        rows.push([p.nameEn, p.color, '', '', '', (p.comment||'').trim()]);
+        rows.push([p.nameEn, p.color, '', '', (p.comment||'').trim()]);
         continue;
       }
-      // 모델별 1행
+      // 모델별 1행. Model 칸은 "이름\nWears size F" 두 줄.
       for(const m of models){
         const cmt=(m.comment||'').trim() || (p.comment||'').trim();
+        const wsz=(m.wearSize||'').trim();
+        const modelText = (m.name||'') + (wsz ? `\nWears size ${wsz}` : '');
         rows.push([
           p.nameEn,
           p.color,
-          m.name||'',
-          m.wearSize||'',
+          modelText,
           m.name?modelImgUrl(m.name):'',
           cmt
         ]);
@@ -1491,16 +1492,16 @@ function dlModelChip(){
     if(rows.length<=1) continue;
     const ws=XLSX.utils.aoa_to_sheet(rows);
 
-    // ModelFTP(컬럼 4) URL 하이퍼링크화
+    // ModelFTP(컬럼 3) URL 하이퍼링크화
     for(let r=1;r<rows.length;r++){
-      const val=rows[r][4];
+      const val=rows[r][3];
       if(typeof val==='string' && /^https?:\/\//i.test(val)){
-        const addr=XLSX.utils.encode_cell({r:r,c:4});
+        const addr=XLSX.utils.encode_cell({r:r,c:3});
         if(ws[addr]) ws[addr].l={Target:val,Tooltip:val};
       }
     }
 
-    ws['!cols']=[{wch:30},{wch:20},{wch:22},{wch:12},{wch:55},{wch:45}];
+    ws['!cols']=[{wch:30},{wch:20},{wch:24},{wch:55},{wch:45}];
     XLSX.utils.book_append_sheet(wbOut,ws,st);
     totalRows+=rows.length-1;
   }

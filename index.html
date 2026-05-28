@@ -361,7 +361,7 @@ const SCOLS={
   top7:['Length','Shoulder','Chest','Hem','Armhole','SleeveWidth','SleeveLength'],
   top6:['Length','Shoulder','Chest','Waist','Hem','Armhole'],
   top5:['Length','Shoulder','Chest','Hem','Armhole'],
-  top4:['Length','Chest','Hem','SleeveLength'],
+  top4:['Length','Chest','Hem','SleeveWidth','SleeveLength'],
   sleeveless:['Length','Shoulder','Chest','Hem','Armhole'],
   pants:['Length','Waist','Hip','FrontRise','Thigh','Hem'],
   denim:['Length','Waist','Hip','FrontRise','Thigh','Hem'],
@@ -432,18 +432,23 @@ function detectSheetType(availCols, baseCat, srcSheet){
   if(priority==='acc') return has('HeadGirth')||has('Depth') ? 'cap' : 'acc';
   if(priority==='cap') return 'cap';
 
-  // ── 2. pants / denim — SKIRT 시트 매칭이면 skirt로 ──
+  // ── 2. pants / denim ──
+  // 카테고리가 PANTS/DENIM이면 그대로 신뢰한다.
+  // (FrontRise·Thigh 실측이 비어 있어도 skirt로 떨어뜨리지 않음 — 데님 오분류 방지)
+  // 단, 명시적으로 SKIRT 시트에서 온 경우에만 skirt.
   if(priority==='pants'||priority==='denim'){
-    if(src==='SKIRT'||(!has('FrontRise')&&!has('Thigh')&&has('Hip'))) return 'skirt';
+    if(src==='SKIRT') return 'skirt';
     return priority==='denim' ? 'denim' : 'pants';
   }
 
-  // ── 3. dress — 컬럼 조합으로 정확히 분기 ──
+  // ── 3. dress — 카테고리가 dress면 무조건 dress 계열 안에서만 분기 ──
+  // 실측 컬럼이 부족해도 top5 등으로 절대 새지 않게 함.
   if(priority==='dress'){
     if(has('SleeveWidth')&&has('SleeveLength')) return 'dress7';
     if(has('Waist')&&has('Hip'))               return 'dress6b';  // Waist+Hip
     if(has('Waist')&&has('Armhole'))           return 'dress6';   // Waist+Armhole
-    return 'dress5';
+    if(has('Waist'))                           return 'dress6';   // Waist만 있어도 dress6
+    return 'dress5';                                              // 그 외 전부 dress5
   }
 
   // ── 4. outer — 컬럼 조합으로 분기 ──
@@ -463,9 +468,13 @@ function detectSheetType(availCols, baseCat, srcSheet){
   if(!has('Shoulder')&&has('SleeveLength')&&!has('Armhole'))                   return 'top4';
 
   // 매칭 정보 없음 → 카테고리 fallback
+  // baseCat이 명확하면 그 카테고리에 맞는 기본 탭으로 보낸다.
   const FALLBACK={
     'KNIT':'top7','KNITWEAR':'top7','T-SHIRT':'top7','TSHIRT':'top7',
-    'TOP':'top5','BLOUSE':'top5','SHIRT':'top5','SET':'top7'
+    'TOP':'top5','BLOUSE':'top5','SHIRT':'top5','SET':'top7',
+    'OUTER':'outer7','SLEEVELESS':'sleeveless',
+    'DRESS':'dress5','PANTS':'pants','DENIM':'denim','SKIRT':'skirt',
+    'SHOES':'shoes','BAG':'bag','ACC':'acc'
   };
   return FALLBACK[baseCat]||'top7';
 }
@@ -474,16 +483,18 @@ function detectSheetType(availCols, baseCat, srcSheet){
 function normCat(raw){
   const c=(raw||'').toUpperCase().trim();
   const MAP={
-    'KNIT':'KNIT','KNITWEAR':'KNIT','T-SHIRT':'T-SHIRT','TSHIRT':'T-SHIRT',
-    'TOP':'TOP','BLOUSE':'TOP','SHIRT':'TOP',
-    'JACKET':'OUTER','JUMPER':'OUTER','COAT':'OUTER','OUTERS':'OUTER','OUTER':'OUTER',
-    'PANTS':'PANTS','BOTTOMS':'PANTS',
-    'DENIM':'DENIM','SKIRT':'SKIRT',
-    'DRESS':'DRESS','ONE-PIECE':'DRESS',
-    'SLEEVELESS':'SLEEVELESS','VEST':'SLEEVELESS',
-    'SET':'SET','SHOES':'SHOES','BAG':'BAG',
+    'KNIT':'KNIT','KNITWEAR':'KNIT','KNITS':'KNIT',
+    'T-SHIRT':'T-SHIRT','TSHIRT':'T-SHIRT','T-SHIRTS':'T-SHIRT','TSHIRTS':'T-SHIRT','TEE':'T-SHIRT',
+    'TOP':'TOP','TOPS':'TOP','BLOUSE':'TOP','BLOUSES':'TOP','SHIRT':'TOP','SHIRTS':'TOP',
+    'JACKET':'OUTER','JACKETS':'OUTER','JUMPER':'OUTER','COAT':'OUTER','COATS':'OUTER','OUTERS':'OUTER','OUTER':'OUTER',
+    'PANTS':'PANTS','PANT':'PANTS','BOTTOMS':'PANTS','BOTTOM':'PANTS','TROUSERS':'PANTS',
+    'DENIM':'DENIM','JEANS':'DENIM','SKIRT':'SKIRT','SKIRTS':'SKIRT',
+    'DRESS':'DRESS','DRESSES':'DRESS','ONE-PIECE':'DRESS','ONEPIECE':'DRESS',
+    'SLEEVELESS':'SLEEVELESS','VEST':'SLEEVELESS','VESTS':'SLEEVELESS',
+    'SET':'SET','SHOES':'SHOES','SHOSE':'SHOES','SHOE':'SHOES','BAG':'BAG','BAGS':'BAG',
     // ACC 계열 — 스카프는 acc, 볼캡은 cap으로 detectSheetType에서 분기
-    'ACC':'ACC','SCARF':'ACC','CAP':'ACC','HAT':'ACC'
+    'ACC':'ACC','SCARF':'ACC','SCARVES':'ACC','CAP':'ACC','CAPS':'ACC','HAT':'ACC','HATS':'ACC',
+    'SOCKS':'ACC','SOCK':'ACC','BELT':'ACC','BELTS':'ACC'
   };
   return MAP[c]||c;
 }
@@ -791,7 +802,9 @@ function parseProd(){
       const nameKr=parts[1]||'';
       const color=get(row,'컬러');
       const size=get(row,'사이즈');
-      const cat=(get(row,'카테고리')||'').toUpperCase().trim();
+      // 카테고리: '카테고리' 헤더가 있으면 그걸, 없으면 'ITEM'(=대분류) 컬럼을 사용.
+      // (일부 기술서는 별도 카테고리 컬럼 없이 ITEM 컬럼에 KNIT/DENIM/DRESS 등을 적어둠)
+      const cat=(getAlt(row,'카테고리','ITEM','Item','품목')||'').toUpperCase().trim();
 
       if(!nameEn&&!code) continue;
 
@@ -1321,20 +1334,30 @@ function dlColorChip(){
   for(const st of orderedTabs){
     const ps=groups[st];
 
-    // ── 상품명 기준으로 같은 아이템의 전체 컬러 묶기 (FTP 슬롯용) ──
-    const itemColorMap={};  // nameEn → [color, color, ...]  (전체 컬러 목록)
+    // ── 상품명 기준으로 같은 아이템 묶기 (아이템당 1행) ──
+    // 키는 norm()으로 정규화 (상품 그룹핑과 동일 기준).
+    // itemColorMap: normKey → [{color, p}, ...]  (그 아이템의 컬러별 상품 객체)
+    // itemMeta:     normKey → {nameEn, rep}      (표시용 원문 이름 + 대표 상품)
+    const itemColorMap={};
+    const itemMeta={};
     const itemOrder=[];
     for(const p of ps){
-      if(!itemColorMap[p.nameEn]){itemColorMap[p.nameEn]=[];itemOrder.push(p.nameEn);}
-      itemColorMap[p.nameEn].push(p.color);
+      const key=norm(p.nameEn);
+      if(!itemColorMap[key]){
+        itemColorMap[key]=[];
+        itemMeta[key]={nameEn:p.nameEn, rep:p};  // 첫 등장을 대표로
+        itemOrder.push(key);
+      }
+      itemColorMap[key].push({color:p.color, p});
     }
 
     // ── 최대 컬러 수 / 최대 모델 수 계산 ──
     let maxColors=0;
     let maxModels=0;
-    for(const p of ps){
-      maxColors=Math.max(maxColors, itemColorMap[p.nameEn].length);
-      maxModels=Math.max(maxModels, p.models.length);
+    for(const key of itemOrder){
+      maxColors=Math.max(maxColors, itemColorMap[key].length);
+      // 모델 수는 그 아이템의 모든 컬러 상품 중 최대
+      for(const {p} of itemColorMap[key]) maxModels=Math.max(maxModels, p.models.length);
     }
     maxColors=Math.max(maxColors,1);
     maxModels=Math.max(maxModels,1);
@@ -1344,52 +1367,58 @@ function dlColorChip(){
     for(let i=1;i<=maxColors;i++) colorHdrs.push('ColorFTP'+i,'Color'+i);
     const modelHdrs=[];
     for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
-    const hdrs=['Item','Color',...colorHdrs,...modelHdrs,'코멘트'];
+    const hdrs=['Item',...colorHdrs,...modelHdrs,'코멘트'];
     const rows=[hdrs];
 
-    // ── 컬러별 한 행씩 ──
-    for(const p of ps){
-      // 이 상품의 전체 컬러 슬롯
-      //  홀수칸(ColorFTP) = 그 컬러의 이미지 URL, 짝수칸 = 컬러명
-      const allColors=itemColorMap[p.nameEn];
+    // ── 아이템당 한 행씩 ──
+    for(const key of itemOrder){
+      const nameEn=itemMeta[key].nameEn;
+      const rep=itemMeta[key].rep;            // 모델·코멘트는 대표 상품 기준
+      const colorList=itemColorMap[key];      // [{color, p}, ...]
+
+      // 컬러 슬롯: 홀수칸(ColorFTP)=그 컬러 이미지 URL, 짝수칸=컬러명
       const colorCells=[];
       for(let i=0;i<maxColors;i++){
-        const cName=allColors[i]||'';
+        const cName=colorList[i]?colorList[i].color:'';
         colorCells.push(
-          cName?colorImgUrl(p.nameEn, cName):'',
+          cName?colorImgUrl(nameEn, cName):'',
           cName
         );
       }
 
-      // 이 컬러를 착용한 모델 (코멘트는 별도 컬럼으로 분리)
-      // 홀수칸=FTP 이미지 URL, 짝수칸=모델 정보
+      // 모델 슬롯: 홀수칸=FTP 이미지 URL, 짝수칸=모델 정보 (대표 상품 기준)
       const modelCells=[];
       for(let i=0;i<maxModels;i++){
-        const m=p.models[i];
+        const m=rep.models[i];
         modelCells.push(
           m?modelImgUrl(m.name):'',
           m?`${m.name}\nWears size ${m.wearSize}`:''
         );
       }
 
-      // 코멘트: 상품 단위 코멘트 우선, 없으면 모델별 코멘트 모아서
-      let cmtCell=(p.comment||'').trim();
-      if(!cmtCell){
-        const ms=(p.models||[]).map(m=>(m.comment||'').trim()).filter(Boolean);
-        cmtCell=[...new Set(ms)].join(' / ');
+      // 코멘트: 아이템 내 모든 컬러 상품의 코멘트를 모아서 (중복 제거)
+      let cmtCell='';
+      {
+        const cmts=[];
+        for(const {p} of colorList){
+          const pc=(p.comment||'').trim();
+          if(pc) cmts.push(pc);
+          else (p.models||[]).forEach(m=>{const mc=(m.comment||'').trim();if(mc)cmts.push(mc);});
+        }
+        cmtCell=[...new Set(cmts)].join(' / ');
       }
 
-      rows.push([p.nameEn, p.color, ...colorCells, ...modelCells, cmtCell]);
+      rows.push([nameEn, ...colorCells, ...modelCells, cmtCell]);
     }
 
     const ws=XLSX.utils.aoa_to_sheet(rows);
 
     // ── 컬러 ColorFTP URL 셀을 하이퍼링크로 변환 ──
-    // 컬럼 배치: [Item(0), Color(1), (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
-    // 컬러 슬롯 시작 = 컬럼 2,  각 컬러의 ColorFTP(URL)칸은 2 + ci*2
+    // 컬럼 배치: [Item(0), (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
+    // 컬러 슬롯 시작 = 컬럼 1,  각 컬러의 ColorFTP(URL)칸은 1 + ci*2
     for(let r=1; r<rows.length; r++){
       for(let ci=0; ci<maxColors; ci++){
-        const urlCol = 2 + ci*2;
+        const urlCol = 1 + ci*2;
         const val = rows[r][urlCol];
         if(typeof val==='string' && /^https?:\/\//i.test(val)){
           const addr = XLSX.utils.encode_cell({r:r, c:urlCol});
@@ -1401,8 +1430,8 @@ function dlColorChip(){
     }
 
     // ── 모델 FTP URL 셀을 하이퍼링크로 변환 ──
-    // 모델 슬롯 시작 컬럼 = 2 + maxColors*2,  각 모델의 홀수칸(=URL)은 +0, 짝수칸(정보)은 +1
-    const modelStartCol = 2 + maxColors*2;
+    // 모델 슬롯 시작 컬럼 = 1 + maxColors*2,  각 모델의 홀수칸(=URL)은 +0, 짝수칸(정보)은 +1
+    const modelStartCol = 1 + maxColors*2;
     for(let r=1; r<rows.length; r++){          // r=0 은 헤더
       for(let mi=0; mi<maxModels; mi++){
         const urlCol = modelStartCol + mi*2;   // FTP URL 칸
@@ -1416,7 +1445,7 @@ function dlColorChip(){
       }
     }
 
-    const colWidths=[{wch:30},{wch:20}];
+    const colWidths=[{wch:30}];
     for(let i=0;i<maxColors;i++) colWidths.push({wch:60},{wch:20});
     for(let i=0;i<maxModels;i++) colWidths.push({wch:10},{wch:45});
     colWidths.push({wch:55}); // 코멘트

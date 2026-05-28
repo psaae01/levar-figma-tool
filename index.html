@@ -293,6 +293,7 @@ select.fi option{background:var(--bg);color:var(--text)}
       <div id="tabs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
       <button class="btn primary" onclick="dlXlsx()">피그마용 엑셀 ↓</button>
       <button class="btn" onclick="dlColorChip()" style="border-color:var(--blue);color:var(--blue)">컬러칩 엑셀 ↓</button>
+      <button class="btn" onclick="dlModelChip()" style="border-color:var(--blue);color:var(--blue)">모델 엑셀 ↓</button>
       <button class="btn" onclick="dlMaster()" style="border-color:var(--amber);color:var(--amber)">마스터 엑셀 ↓</button>
       <button class="btn" id="gs-save-editor-btn" onclick="saveToGs()" style="border-color:var(--green);color:var(--green);display:none">구글시트 저장 ↑</button>
       <button class="btn" onclick="resetAll()">처음으로</button>
@@ -1351,29 +1352,22 @@ function dlColorChip(){
       itemColorMap[key].push({color:p.color, p});
     }
 
-    // ── 최대 컬러 수 / 최대 모델 수 계산 ──
+    // ── 최대 컬러 수 계산 (모델은 별도 '모델 엑셀'로 분리) ──
     let maxColors=0;
-    let maxModels=0;
     for(const key of itemOrder){
       maxColors=Math.max(maxColors, itemColorMap[key].length);
-      // 모델 수는 그 아이템의 모든 컬러 상품 중 최대
-      for(const {p} of itemColorMap[key]) maxModels=Math.max(maxModels, p.models.length);
     }
     maxColors=Math.max(maxColors,1);
-    maxModels=Math.max(maxModels,1);
 
     // ── 헤더 동적 생성 ──
     const colorHdrs=[];
     for(let i=1;i<=maxColors;i++) colorHdrs.push('ColorFTP'+i,'Color'+i);
-    const modelHdrs=[];
-    for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
-    const hdrs=['Item',...colorHdrs,...modelHdrs,'코멘트'];
+    const hdrs=['Item',...colorHdrs,'코멘트'];
     const rows=[hdrs];
 
     // ── 아이템당 한 행씩 ──
     for(const key of itemOrder){
       const nameEn=itemMeta[key].nameEn;
-      const rep=itemMeta[key].rep;            // 모델·코멘트는 대표 상품 기준
       const colorList=itemColorMap[key];      // [{color, p}, ...]
 
       // 컬러 슬롯: 홀수칸(ColorFTP)=그 컬러 이미지 URL, 짝수칸=컬러명
@@ -1383,16 +1377,6 @@ function dlColorChip(){
         colorCells.push(
           cName?colorImgUrl(nameEn, cName):'',
           cName
-        );
-      }
-
-      // 모델 슬롯: 홀수칸=FTP 이미지 URL, 짝수칸=모델 정보 (대표 상품 기준)
-      const modelCells=[];
-      for(let i=0;i<maxModels;i++){
-        const m=rep.models[i];
-        modelCells.push(
-          m?modelImgUrl(m.name):'',
-          m?`${m.name}\nWears size ${m.wearSize}`:''
         );
       }
 
@@ -1408,13 +1392,13 @@ function dlColorChip(){
         cmtCell=[...new Set(cmts)].join(' / ');
       }
 
-      rows.push([nameEn, ...colorCells, ...modelCells, cmtCell]);
+      rows.push([nameEn, ...colorCells, cmtCell]);
     }
 
     const ws=XLSX.utils.aoa_to_sheet(rows);
 
     // ── 컬러 ColorFTP URL 셀을 하이퍼링크로 변환 ──
-    // 컬럼 배치: [Item(0), (컬러슬롯 2개씩 ×maxColors), (모델슬롯 2개씩 ×maxModels), 코멘트]
+    // 컬럼 배치: [Item(0), (컬러슬롯 2개씩 ×maxColors), 코멘트]
     // 컬러 슬롯 시작 = 컬럼 1,  각 컬러의 ColorFTP(URL)칸은 1 + ci*2
     for(let r=1; r<rows.length; r++){
       for(let ci=0; ci<maxColors; ci++){
@@ -1429,25 +1413,8 @@ function dlColorChip(){
       }
     }
 
-    // ── 모델 FTP URL 셀을 하이퍼링크로 변환 ──
-    // 모델 슬롯 시작 컬럼 = 1 + maxColors*2,  각 모델의 홀수칸(=URL)은 +0, 짝수칸(정보)은 +1
-    const modelStartCol = 1 + maxColors*2;
-    for(let r=1; r<rows.length; r++){          // r=0 은 헤더
-      for(let mi=0; mi<maxModels; mi++){
-        const urlCol = modelStartCol + mi*2;   // FTP URL 칸
-        const val = rows[r][urlCol];
-        if(typeof val==='string' && /^https?:\/\//i.test(val)){
-          const addr = XLSX.utils.encode_cell({r:r, c:urlCol});
-          if(ws[addr]){
-            ws[addr].l = { Target: val, Tooltip: val };
-          }
-        }
-      }
-    }
-
     const colWidths=[{wch:30}];
     for(let i=0;i<maxColors;i++) colWidths.push({wch:60},{wch:20});
-    for(let i=0;i<maxModels;i++) colWidths.push({wch:10},{wch:45});
     colWidths.push({wch:55}); // 코멘트
     ws['!cols']=colWidths;
     XLSX.utils.book_append_sheet(wbOut,ws,st);
@@ -1479,6 +1446,67 @@ function dlColorChip(){
   }
 
   XLSX.writeFile(wbOut,'LEVAR_컬러칩_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ── 모델 시트 별도 export ──
+// 구조: 아이템 / 컬러 / 그 컬러를 입은 모델 (모델별 1행, 모델 FTP URL 포함)
+// 탭(sheetType)별로 시트를 나눠서 컬러칩과 동일한 구성을 유지.
+function dlModelChip(){
+  if(!prods.length){alert('상품이 없습니다.');return;}
+  const wbOut=XLSX.utils.book_new();
+
+  const TAB_ORDER=['outer7','outer6','outer5','top7','top6','top5','top4',
+    'sleeveless','pants','denim','skirt','dress7','dress6','dress6b','dress5',
+    'shoes','bag','acc','cap'];
+  const groups={};
+  for(const p of prods){if(!groups[p.sheetType])groups[p.sheetType]=[];groups[p.sheetType].push(p);}
+  const orderedTabs=TAB_ORDER.filter(t=>groups[t]&&groups[t].length>0);
+
+  let totalRows=0;
+  for(const st of orderedTabs){
+    const ps=groups[st];
+    const rows=[['Item','Color','Model','착장 사이즈','ModelFTP','코멘트']];
+
+    for(const p of ps){
+      const models=p.models||[];
+      if(models.length===0){
+        // 모델 정보가 없는 컬러도 한 줄은 남겨 어떤 컬러가 모델 미정인지 보이게
+        rows.push([p.nameEn, p.color, '', '', '', (p.comment||'').trim()]);
+        continue;
+      }
+      // 모델별 1행
+      for(const m of models){
+        const cmt=(m.comment||'').trim() || (p.comment||'').trim();
+        rows.push([
+          p.nameEn,
+          p.color,
+          m.name||'',
+          m.wearSize||'',
+          m.name?modelImgUrl(m.name):'',
+          cmt
+        ]);
+      }
+    }
+
+    if(rows.length<=1) continue;
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+
+    // ModelFTP(컬럼 4) URL 하이퍼링크화
+    for(let r=1;r<rows.length;r++){
+      const val=rows[r][4];
+      if(typeof val==='string' && /^https?:\/\//i.test(val)){
+        const addr=XLSX.utils.encode_cell({r:r,c:4});
+        if(ws[addr]) ws[addr].l={Target:val,Tooltip:val};
+      }
+    }
+
+    ws['!cols']=[{wch:30},{wch:20},{wch:22},{wch:12},{wch:55},{wch:45}];
+    XLSX.utils.book_append_sheet(wbOut,ws,st);
+    totalRows+=rows.length-1;
+  }
+
+  if(totalRows===0){alert('모델 정보가 있는 상품이 없습니다.');return;}
+  XLSX.writeFile(wbOut,'LEVAR_모델_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
 // ── GOOGLE SHEETS 연동 ──

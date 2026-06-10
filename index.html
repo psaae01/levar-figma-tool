@@ -293,6 +293,7 @@ select.fi option{background:var(--bg);color:var(--text)}
       <div id="tabs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
       <button class="btn primary" onclick="dlXlsx()">피그마용 엑셀 ↓</button>
       <button class="btn" onclick="dlColorChip()" style="border-color:var(--blue);color:var(--blue)">컬러칩 엑셀 ↓</button>
+      <button class="btn" onclick="dlModel()" style="border-color:var(--green);color:var(--green)">모델 엑셀 ↓</button>
       <button class="btn" onclick="dlMaster()" style="border-color:var(--amber);color:var(--amber)">마스터 엑셀 ↓</button>
       <button class="btn" id="gs-save-editor-btn" onclick="saveToGs()" style="border-color:var(--green);color:var(--green);display:none">구글시트 저장 ↑</button>
       <button class="btn" onclick="resetAll()">처음으로</button>
@@ -1210,6 +1211,42 @@ function dlXlsx(){
     XLSX.utils.book_append_sheet(wbOut,ws,st);
   } // end for orderedTabs
   XLSX.writeFile(wbOut,'LEVAR_피그마_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ── EXPORT 모델 (모델 이미지 작업용 · 시트별 Item·Color·Model·코멘트) ──
+function dlModel(){
+  const wbOut=XLSX.utils.book_new();
+  const TAB_ORDER=['outer7','outer6','outer5','top7','top6','top6b','top5','top4',
+    'sleeveless','pants','denim','skirt','dress7','dress6','dress6b','dress5',
+    'shoes','bag','acc','cap'];
+  const groups={};
+  for(const p of prods){(groups[p.sheetType]=groups[p.sheetType]||[]).push(p);}
+  const orderedTabs=TAB_ORDER.filter(t=>groups[t]&&groups[t].length>0);
+  if(!orderedTabs.length){ alert('내보낼 모델 데이터가 없어요. 먼저 변환을 실행하세요.'); return; }
+  for(const st of orderedTabs){
+    const ps=groups[st];
+    let maxModels=0;
+    for(const p of ps) maxModels=Math.max(maxModels,p.models.length);
+    maxModels=Math.max(maxModels,2);  // 최소 2슬롯(Model1~4)
+    const modelHdrs=[];
+    for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
+    const hdrs=['Item','Color',...modelHdrs,'코멘트'];
+    const rows=[hdrs];
+    for(const p of ps){
+      const modelCells=[];
+      for(let i=0;i<maxModels;i++){
+        const m=p.models[i];
+        modelCells.push('', m?`${m.name}\nWears size ${m.wearSize}`:'');  // 홀수=FTP칸(공백), 짝수=모델정보
+      }
+      rows.push([p.nameEn, p.color, ...modelCells, p.models.length>0?'X':'']);
+    }
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:28},{wch:16},
+      ...Array(maxModels*2).fill(null).map((_,i)=>i%2===0?{wch:18}:{wch:30}),
+      {wch:8}];
+    XLSX.utils.book_append_sheet(wbOut,ws,st);
+  }
+  XLSX.writeFile(wbOut,'LEVAR_모델_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
 // ── EXPORT 컬러칩 ──

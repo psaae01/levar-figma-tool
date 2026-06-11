@@ -775,10 +775,14 @@ function parseProd(){
         // 모델 파싱 - 컬럼명 두 가지 모두 시도
         const mStr=get(row,'착용 모델')||get(row,'착용 모델');
         const mSz=get(row,'모델 착장 사이즈');
+        // 착용코멘트: 상품 단위 코멘트 1개 (셀 안 줄바꿈은 한 코멘트의 일부 → 공백으로 합침)
+        const mCmRaw=get(row,'착용코멘트').trim();
+        const wearComment=(mCmRaw && mCmRaw.toUpperCase()!=='X') ? mCmRaw.replace(/\s*\n\s*/g,' ').trim() : '';
+        const szArr=mSz.split('\n');
         const models=[];
         if(mStr){
           mStr.split('\n').map(s=>s.trim()).filter(Boolean).forEach((m,i)=>{
-            models.push({name:m, wearSize:(mSz.split('\n')[i]||'').trim()});
+            models.push({name:m, wearSize:(szArr[i]||'').trim()});
           });
         }
 
@@ -825,6 +829,7 @@ function parseProd(){
         const finalShip  = ship   || masterRow?.ship  || '';
         const finalFabric= get(row,'소재') || masterRow?.fabric || '';
         const finalCare  = translateCare(get(row,'세탁방법') || masterRow?.care || '드라이클리닝');
+        const finalComment = wearComment || masterRow?.comment || '';   // 착용코멘트 (상품 단위)
 
         groups[key]={
           no:parseFloat(no), firstCode:code, codes:[], drop:dropTag,
@@ -836,6 +841,7 @@ function parseProd(){
           fabric:finalFabric, country:get(row,'제조국'),
           care:finalCare,
           models:finalModels, desc:finalDesc, care2:finalCare2, prec:finalPrec, ship:finalShip,
+          comment:finalComment,
           modified:false,
           carryover:isCarryover,
           codeYear:codeYear||null,
@@ -1011,6 +1017,7 @@ function renderDetail(){
           <span class="fl">소재</span><input class="fi" value="${esc(p.fabric)}" onchange="upd(${sel},'fabric',this.value)">
           <span class="fl">제조국</span><input class="fi" value="${p.country||''}" onchange="upd(${sel},'country',this.value)">
           <span class="fl">세탁</span><input class="fi" value="${p.care||''}" onchange="upd(${sel},'care',this.value)">
+          <span class="fl">코멘트</span><input class="fi" value="${esc(p.comment||'')}" placeholder="#Comments — 사이즈 표 아래" onchange="upd(${sel},'comment',this.value)">
           <span class="fl">탭(시트)</span>
           <select class="fi" onchange="upd(${sel},'sheetType',this.value)">
             ${allSheets.map(s=>`<option value="${s}"${s===p.sheetType?' selected':''}>${s}</option>`).join('')}
@@ -1255,7 +1262,7 @@ function dlXlsx(toDrive){
     const modelHdrs=[];
     for(let i=0;i<maxModels;i++) modelHdrs.push('Model'+(i*2+1),'Model'+(i*2+2));
 
-    const hdrs=['Item','Description','Fabric','Color','Size1',...sc,
+    const hdrs=['Item','Description','Fabric','Color','Size1',...sc,'Comments',
       ...modelHdrs,
       'Care','CareTip2','Precaution2','SP','Shipping',
       'Making','Making2','Making3','Making4','Making5','Making6'];
@@ -1270,14 +1277,14 @@ function dlXlsx(toDrive){
       const ship=p.ship||'미흡한 마감 처리(초크 자국, 실밥, ±1~2cm 사이즈 오차, 패턴 불규칙 등)는 교환 및 반품 사유에 해당하지 않습니다.';
       rows.push([
         p.nameEn, p.desc||'', p.fabric||'', p.color, p.size||'',
-        ...szVals, ...modelCells,
+        ...szVals, p.comment||'', ...modelCells,
         p.care||'Dry clean only', p.care2||'', p.prec||'',
         'Shipping', ship, '','','','','',''
       ]);
     }
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws['!cols']=[{wch:28},{wch:60},{wch:35},{wch:16},{wch:14},
-      ...sc.map(()=>({wch:9})),
+      ...sc.map(()=>({wch:9})), {wch:50},
       ...Array(maxModels*2).fill(null).map((_,i)=>i%2===0?{wch:10}:{wch:45}),
       {wch:16},{wch:60},{wch:60},{wch:10},{wch:60},
       ...Array(6).fill({wch:5})];
@@ -1329,7 +1336,7 @@ function dlColorChip(toDrive){
   if(!prods.length){alert('상품 데이터가 없어요.');return;}
   const wbOut=XLSX.utils.book_new();
 
-  const TAB_ORDER=['outer7','outer6','outer5','top7','top6','top5','top4',
+  const TAB_ORDER=['outer7','outer6','outer5','top7','top6','top6b','top5','top4',
     'sleeveless','pants','denim','skirt','dress7','dress6','dress6b','dress5',
     'shoes','bag','acc','cap'];
   const groups={};
